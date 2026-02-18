@@ -27,19 +27,19 @@ Users authenticate with GitHub to enable repository access and authorize the app
 
 ### User Story 1 - Repository and Feature Selection (Priority: P1)
 
-Users start their workflow by selecting a Git repository from their local machine or a list of recent repositories, then choosing an existing feature branch or creating a new one. This foundation enables all downstream workflows.
+Users authenticate with GitHub and select from their list of GitHub repositories (public or private), then choose an existing feature branch or create a new one. All spec/plan/task documents are read from and written to the selected GitHub repository via the GitHub API. This foundation enables all downstream workflows.
 
-**Why this priority**: The entire workflow depends on having a proper context - without repo/feature selection, no spec, plan, or task workflow can proceed. This is the entry point for all users.
+**Why this priority**: The entire workflow depends on having a proper context - without GitHub repo/feature selection, no spec, plan, or task workflow can proceed. This is the entry point for all users after authentication.
 
-**Independent Test**: Users can select a repo from a file picker or recent list, then select/create a feature branch and see the appropriate spec/plan/task files load for that feature context.
+**Independent Test**: Users can authenticate, see filtered list of their GitHub repos (with search/filter), select one, view existing feature branches, create a new feature, and retrieve spec/plan/task documents from GitHub repository.
 
 **Acceptance Scenarios**:
 
-1. **Given** user launches the application, **When** they interact with the repo selector, **Then** they see a list of recent repositories and a "Browse" option to select any local repo
-2. **Given** user has selected a repository, **When** they look at the feature selector, **Then** they see all existing feature branches from that repo with a "Create New Feature" option
-3. **Given** user creates a new feature, **When** they enter a feature name, **Then** the system creates a new feature branch and initializes empty spec/plan/task documents
-4. **Given** user selects an existing feature with matching spec/plan/task files, **When** the feature loads, **Then** all documents are displayed in their corresponding tabs
-5. **Given** user has a repo/feature selected, **When** they want to switch repos or features, **Then** the UI provides clear navigation to do so without losing unsaved work
+1. **Given** user has authenticated with GitHub, **When** they interact with the repo selector, **Then** they see a searchable list of their accessible GitHub repositories (owned, contributed, or accessible)
+2. **Given** user selects a GitHub repository, **When** they look at the feature selector, **Then** they see all existing feature branches from that GitHub repo with a "Create New Feature" option
+3. **Given** user creates a new feature, **When** they enter a feature name, **Then** the system invokes Copilot CLI to create the branch on GitHub and initialize spec/plan/task files in the GitHub repository
+4. **Given** user selects an existing feature branch, **When** the feature loads, **Then** the system fetches spec.md, plan.md, task.md from the GitHub repository and displays them in their corresponding tabs
+5. **Given** user has a repo/feature selected, **When** they want to switch repos or features, **Then** the UI provides clear navigation with unsaved changes warning
 
 ---
 
@@ -172,12 +172,15 @@ The system acts as a thin orchestrator layer that delegates core workflow operat
 - **Reliability**: Copilot CLI supports error handling, retries, and complex multi-step processes
 
 **Integration Points**:
-1. **Feature Creation**: UI invokes Copilot CLI (via subprocess/CLI) to run create-new-feature.sh, which creates Git branches and initializes spec files
-2. **Spec Generation**: UI sends specification requirements to Copilot CLI LLM engine to generate filled spec.md from Speckit templates
-3. **Clarification**: UI triggers Copilot CLI clarify workflow to analyze spec ambiguities and generate clarifying questions
-4. **Analysis**: UI triggers Copilot CLI analyze workflow to examine task breakdown for completeness and dependencies
-5. **Plan Generation**: UI sends spec.md to Copilot CLI to generate plan.md with task breakdown
-6. **Real-Time Updates**: Each Copilot CLI operation streams progress/thinking messages via WebSocket to the UI for live feedback
+1. **Feature Creation**: UI invokes Copilot CLI to run create-new-feature.sh with GitHub repo/branch parameters → CLI creates branch on GitHub and initializes spec files in GitHub repository
+2. **Spec Retrieval**: UI fetches spec.md from GitHub repository via GitHub API (GET /repos/{owner}/{repo}/contents/specs/{branch}/spec.md)
+3. **Spec Generation**: UI sends requirement to Copilot CLI → CLI generates spec.md and writes to GitHub repository via GitHub API
+4. **Clarification**: UI triggers Copilot CLI clarify workflow → CLI reads spec.md from GitHub, analyzes ambiguities, updates spec.md on GitHub
+5. **Analysis**: UI triggers Copilot CLI analyze workflow → CLI reads task.md from GitHub, examines breakdown, streams analysis via WebSocket
+6. **Plan Generation**: UI sends spec.md to Copilot CLI → CLI reads from GitHub, generates plan.md, writes to GitHub repository
+7. **Document Editing**: User edits in UI → changes cached in browser → click "Save" → persisted to GitHub via API or CLI
+8. **Real-Time Updates**: Each Copilot CLI operation streams progress/thinking messages via WebSocket to UI for live feedback
+9. **File Persistence**: ALL spec/plan/task changes written to GitHub repository via GitHub API; NO local filesystem involvement
 
 ### GitHub Authentication Architecture
 
@@ -265,34 +268,34 @@ When Copilot CLI operations are triggered (Clarify, Analyze, Plan generation), t
 
 #### Repository & Feature Management (P1)
 
-- **FR-REPO-001**: System MUST retrieve list of accessible GitHub repositories using authenticated GitHub token and display them to user
-- **FR-REPO-002**: System MUST allow users to select one repository to work with from the authenticated list
-- **FR-REPO-003**: System MUST allow users to manually select a local repository path as an alternative to GitHub-authenticated repos
-- **FR-REPO-004**: System MUST display the selected repository name and feature branch as prominent persistent headers in the main interface
-- **FR-REPO-005**: System MUST retrieve existing feature branches from selected repository and display them with indicators (local vs. remote)
-- **FR-REPO-006**: System MUST allow users to create new feature branches by invoking Copilot CLI create-new-feature.sh script
-- **FR-REPO-007**: System MUST parse JSON output from Copilot CLI scripts to extract branch names and spec file paths
-- **FR-REPO-008**: System MUST allow users to switch repositories or feature branches without losing unsaved work in current documents
+- **FR-REPO-001**: System MUST retrieve list of accessible GitHub repositories using authenticated GitHub token via GitHub API and display them to user with search/filter capability
+- **FR-REPO-002**: System MUST allow users to select one GitHub repository to work with from the authenticated list
+- **FR-REPO-003**: System MUST NOT support local repository paths or filesystem-based repos; all repositories MUST be accessible via GitHub.com
+- **FR-REPO-004**: System MUST display the selected repository name (owner/repo format) and feature branch as prominent persistent headers in the main interface
+- **FR-REPO-005**: System MUST retrieve existing feature branches from selected GitHub repository via GitHub API and display them with branch information
+- **FR-REPO-006**: System MUST allow users to create new feature branches by invoking Copilot CLI create-new-feature.sh script, which creates the branch on GitHub
+- **FR-REPO-007**: System MUST parse JSON output from Copilot CLI scripts to extract branch names, spec file paths, and GitHub repository metadata
+- **FR-REPO-008**: System MUST allow users to switch repositories or feature branches without losing unsaved changes in current editor session
 
 #### Document Management & Workflow (P1)
 
-- **FR-DOC-001**: System MUST provide tab-based navigation for Spec, Plan, and Task documents that correspond to files in the same spec directory
-- **FR-DOC-002**: System MUST load spec.md, plan.md, and task.md files from the feature's spec directory (e.g., `specs/009-redesigned-workflow-ux/`) if they exist
-- **FR-DOC-003**: System MUST allow creation of spec.md, plan.md, and task.md files with appropriate Speckit templates if they don't already exist
-- **FR-DOC-004**: System MUST preserve unsaved changes in a document tab when user switches to another tab
-- **FR-DOC-005**: System MUST support viewing of constitution.md file if it exists (future enhancement ready)
-- **FR-DOC-006**: System MUST maintain proper context (repo+feature) when switching between documents or triggering operations
+- **FR-DOC-001**: System MUST provide tab-based navigation for Spec, Plan, and Task documents that are persisted in GitHub repository
+- **FR-DOC-002**: System MUST fetch spec.md, plan.md, and task.md files from the GitHub repository's `specs/{feature-branch}/` directory via GitHub API if they exist
+- **FR-DOC-003**: System MUST allow creation of spec.md, plan.md, and task.md files with appropriate Speckit templates by writing to GitHub repository via GitHub API
+- **FR-DOC-004**: System MUST preserve unsaved changes in a document tab when user switches to another tab (in-memory cache until explicit save/commit)
+- **FR-DOC-005**: System MUST support viewing of constitution.md file if it exists in GitHub repository (future enhancement ready)
+- **FR-DOC-006**: System MUST maintain proper context (repo+feature+branch) when switching between documents, with all file operations performed via GitHub API
 
 #### Copilot CLI Integration & Operations (P1-P2)
 
-- **FR-CLI-001**: System MUST invoke Copilot CLI as a subprocess for all spec/plan/task generation and enrichment operations
-- **FR-CLI-002**: System MUST pass GitHub token to Copilot CLI via environment variables or command-line arguments for API access
-- **FR-CLI-003**: System MUST support creation of new features by invoking Copilot CLI create-new-feature.sh with appropriate parameters
-- **FR-CLI-004**: System MUST provide a "Clarify" button/action in the Spec tab that triggers the Copilot CLI clarify workflow
-- **FR-CLI-005**: System MUST provide an "Analyze" button/action in the Task tab that triggers the Copilot CLI analyze workflow
-- **FR-CLI-006**: System MUST automatically update spec.md, plan.md, and task.md files once Copilot CLI workflows complete
+- **FR-CLI-001**: System MUST invoke Copilot CLI as a subprocess for all spec/plan/task generation, enrichment, and GitHub repository operations
+- **FR-CLI-002**: System MUST pass GitHub Personal Access Token to Copilot CLI via environment variables for GitHub API access during operations
+- **FR-CLI-003**: System MUST support creation of new features by invoking Copilot CLI create-new-feature.sh with GitHub repository and branch parameters, which creates the branch on GitHub and initializes spec files
+- **FR-CLI-004**: System MUST provide a "Clarify" button/action in the Spec tab that triggers the Copilot CLI clarify workflow to analyze spec.md from GitHub and update it on GitHub
+- **FR-CLI-005**: System MUST provide an "Analyze" button/action in the Task tab that triggers the Copilot CLI analyze workflow to read task.md from GitHub
+- **FR-CLI-006**: System MUST persist updated spec.md, plan.md, and task.md files to GitHub repository via GitHub API or Copilot CLI push operations once workflows complete
 - **FR-CLI-007**: System MUST handle Copilot CLI command execution in the background without blocking the UI
-- **FR-CLI-008**: System MUST capture stderr/stdout from Copilot CLI and stream it to the conversation panel via WebSocket
+- **FR-CLI-008**: System MUST capture stderr/stdout from Copilot CLI and stream it to the conversation panel via WebSocket for real-time visibility of GitHub operations
 
 #### Real-Time Communication & Feedback (P2)
 
@@ -572,9 +575,17 @@ Migration to Phase 2 (OAuth2):
 
 ## Assumptions
 
-- **GitHub Account**: Users have a GitHub account with active authentication credentials
-- **GitHub Token Access**: Users have access to GitHub developer settings to create Personal Access Tokens
-- **Git Repository Access**: Users have Git installed and can access local repositories with appropriate permissions
+- **GitHub Account**: Users have a GitHub account with active GitHub.com access
+- **GitHub Token Access**: Users have access to GitHub developer settings to create Personal Access Tokens with repo and workflow scopes
+- **GitHub Repository Ownership**: Users have at least contributor access to GitHub repositories to create branches and write files
+- **Copilot CLI Installation**: Copilot CLI is installed and accessible in the system PATH for the application to invoke
+- **Copilot Authentication**: A valid Copilot token/auth is configured in the Copilot CLI environment
+- **Network Connectivity**: Persistent internet connection available for GitHub API calls and WebSocket communication
+- **Browser Environment**: The application runs in a modern web browser (Chrome, Safari, Edge, Firefox)
+- **No Local Repository Requirement**: The application does NOT require local filesystem access; all operations performed via GitHub API (cloud-first)
+- **GitHub API Rate Limits**: Users are within GitHub API rate limits (1000/hour for authenticated requests)
+- **User Familiarity**: Users understand GitHub.com workflows, feature branches, and repository navigation
+- **Template Availability**: Speckit templates (spec.md, plan.md, task.md) are available and properly formatted
 - **Copilot CLI Installation**: Copilot CLI is installed and accessible in the system PATH for the application to invoke
 - **Copilot Authentication**: A valid Copilot token/auth is configured in the Copilot CLI environment
 - **Network Connectivity**: WebSocket connections can be established between the UI application and the Copilot CLI backend service
@@ -586,20 +597,21 @@ Migration to Phase 2 (OAuth2):
 ## Dependencies and Integrations
 
 **External Services**:
-- **GitHub API**: Required for repository listing, branch creation, file operations (authenticated via PAT or OAuth2 token)
-- **Copilot CLI**: Backend engine for spec/clarify/plan/analyze/task/implement workflows (subprocess-based execution)
+- **GitHub API (Primary)**: Required for repository listing, branch creation, file operations (spec.md, plan.md, task.md read/write), authenticated via PAT or OAuth2 token; all document persistence via GitHub API (cloud-first)
+- **Copilot CLI**: Backend engine for spec/clarify/plan/analyze/task/implement workflows (subprocess-based execution); reads/writes spec documents from/to GitHub
 - **GitHub Copilot**: LLM inference engine used by Copilot CLI for content generation and analysis
 
 **Infrastructure**:
-- **Git**: Local repository and branch management
-- **WebSocket Protocol**: Real-time communication between browser and backend
+- **Git (Backend Only)**: Used by Copilot CLI internally for local branch operations before pushing to GitHub; NOT available on frontend, NO direct user filesystem access
+- **WebSocket Protocol**: Real-time communication between browser and backend for streaming Copilot CLI output and LLM thinking
 - **Modern Web Framework**: React, Next.js, Vue.js, or Svelte (NOT Streamlit or Flask-based single-file apps)
-- **Backend Runtime**: Node.js, Python, or similar capable of subprocess management and WebSocket support
+- **Backend Runtime**: Node.js, Python, or similar capable of subprocess management, GitHub API integration, and WebSocket support
+- **Browser Storage**: sessionStorage for GitHub token management (cleared on tab/session close)
 
 **Security**:
-- **HTTPS**: All communication with GitHub API and backend
-- **Secure Storage**: GitHub tokens stored in browser sessionStorage or encrypted local storage
-- **OAuth2 (Future)**: Path for Phase 2 migration to enterprise authentication model
+- **HTTPS**: All communication with GitHub API and backend required
+- **Token Handling**: GitHub tokens in browser sessionStorage only (never logged, never persisted to disk)
+- **OAuth2 (Phase 2)**: Future enterprise authentication with GitHub OAuth Apps (breaking change risk during migration)
 
 ## Out of Scope (for this phase)
 
