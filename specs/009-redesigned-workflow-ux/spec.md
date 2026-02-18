@@ -7,6 +7,24 @@
 
 ## User Scenarios & Testing *(mandatory)*
 
+### User Story 0 - GitHub Authentication and Authorization (Priority: P0)
+
+Users authenticate with GitHub to enable repository access and authorize the application to interact with their private and public repositories. This is the critical prerequisite for all downstream workflows.
+
+**Why this priority**: Without GitHub authentication, users cannot access repositories or trigger Copilot CLI operations. This is a hard blocker for the entire application.
+
+**Independent Test**: Users can complete GitHub authentication through the application UI, see confirmation of successful auth, and retrieve a list of accessible repositories.
+
+**Acceptance Scenarios**:
+
+1. **Given** user launches the application, **When** they have not authenticated, **Then** they see an authentication screen requesting GitHub access
+2. **Given** user clicks "Authenticate with GitHub", **When** they are directed to GitHub or shown a token input form, **Then** they can securely provide credentials
+3. **Given** user has provided a valid GitHub token, **When** authentication completes, **Then** the system confirms auth success and enables repository selection
+4. **Given** user is authenticated, **When** they close and reopen the application, **Then** their authentication session persists (or re-authenticates seamlessly)
+5. **Given** authentication credentials are invalid or expired, **When** a Copilot operation fails due to auth, **Then** the system prompts user to re-authenticate
+
+---
+
 ### User Story 1 - Repository and Feature Selection (Priority: P1)
 
 Users start their workflow by selecting a Git repository from their local machine or a list of recent repositories, then choosing an existing feature branch or creating a new one. This foundation enables all downstream workflows.
@@ -139,35 +157,176 @@ The tab interface is designed to support constitution.md as a future child panel
 - What happens when a user tries to clarify a spec that has no ambiguities detected?
 - How does the system behave if a user creates a new feature but then navigates away before creating any documents?
 - What happens if multiple tabs attempt to edit the same document simultaneously (potential conflict scenario)?
+- What occurs if GitHub token is expired or revoked during an active session?
+- How does the system handle API rate limits when fetching repositories or executing Copilot CLI commands?
+
+## Architecture & Integration *(mandatory)*
+
+### Copilot CLI Integration Strategy
+
+The system acts as a thin orchestrator layer that delegates core workflow operations to Copilot CLI, the proven execution engine for Speckit workflows. This architecture ensures:
+
+- **Separation of Concerns**: UI handles presentation and state management; Copilot CLI handles spec/plan/task generation, clarification, and analysis logic
+- **Reusability**: Workflows can be triggered from CLI directly or through the web UI with consistent behavior
+- **Extensibility**: New workflow steps (e.g., constitutionverification) can be added to Copilot CLI and automatically available in UI
+- **Reliability**: Copilot CLI supports error handling, retries, and complex multi-step processes
+
+**Integration Points**:
+1. **Feature Creation**: UI invokes Copilot CLI (via subprocess/CLI) to run create-new-feature.sh, which creates Git branches and initializes spec files
+2. **Spec Generation**: UI sends specification requirements to Copilot CLI LLM engine to generate filled spec.md from Speckit templates
+3. **Clarification**: UI triggers Copilot CLI clarify workflow to analyze spec ambiguities and generate clarifying questions
+4. **Analysis**: UI triggers Copilot CLI analyze workflow to examine task breakdown for completeness and dependencies
+5. **Plan Generation**: UI sends spec.md to Copilot CLI to generate plan.md with task breakdown
+6. **Real-Time Updates**: Each Copilot CLI operation streams progress/thinking messages via WebSocket to the UI for live feedback
+
+### GitHub Authentication Architecture
+
+**Authentication Strategy (Recommended: Token-Based with OAuth2 Path)**
+
+The application supports GitHub authentication to enable repository access and authorize API operations. We recommend implementing **GitHub Classic Personal Access Tokens (PAT)** for Phase 1, with a clear migration path to OAuth2 in Phase 2 for enterprise deployment.
+
+**Phase 1 - Personal Access Token (PAT) Based** (Immediate, suitable for teams):
+- Users generate a GitHub classic Personal Access Token from `github.com/settings/tokens`
+- Tokens are scoped to: `repo` (full control of private repos), `workflow` (read/write to GitHub Actions)
+- Users input token into the application (via secure input field with masking)
+- Token is stored securely in local environment or browser session (not persisted to disk/cloud)
+- Token is used for: repository enumeration, branch creation, file operations via GitHub API
+
+**Phase 2 - OAuth2 Implementation** (Later, for enterprise/sharing scenarios):
+- Users click "Login with GitHub" on a login screen
+- User is redirected to GitHub OAuth authorization endpoint
+- GitHub redirects back with authorization code
+- Application exchanges code for access token (backend-to-backend, never exposed to frontend)
+- Access token is stored securely server-side with expiration/refresh logic
+- Requires dedicated login screen with GitHub OAuth button
+
+**Recommendation: Start with Token-Based, Plan OAuth2 Migration**
+
+**Rationale for Token-Based in Phase 1**:
+- ✅ Simpler implementation (no backend OAuth flow needed)
+- ✅ Faster time-to-market for team/individual users
+- ✅ Clear user control over token scope and revocation
+- ✅ Works seamlessly with local development workflows
+- ✅ Aligns with Copilot CLI's existing token-based auth model
+
+**Rationale for OAuth2 Migration in Phase 2**:
+- ✅ Better UX for non-technical users (no token generation needed)
+- ✅ Automatic token refresh without user action
+- ✅ Compliance with enterprise security policies (no manual secrets)
+- ✅ Enables multi-tenant SaaS deployment scenarios
+- ✅ Supports "Remember me" and session persistence across devices
+
+**Authentication Flow (Phase 1)**:
+1. User launches application
+2. System checks for stored auth token (browser sessionStorage or local secure storage)
+3. If no token: show "Authenticate" screen with secure token input field
+4. User pastes GitHub token and clicks "Verify"
+5. System validates token via GitHub API (test API call to /user)
+6. If valid: store token in session and enable repo selection
+7. If invalid: display error and request re-entry
+8. For all Copilot/GitHub operations: use stored token in Authorization headers
+
+**Authentication Flow (Phase 2 - OAuth2 - Future)**:
+1. User launches application
+2. System checks for valid access token
+3. If none: redirect to login screen (new page/modal)
+4. User clicks "Login with GitHub"
+5. OAuth flow: browser → GitHub → backend → frontend (token never exposed client-side)
+6. User is redirected to main app with authenticated session
+7. Session persists via secure session cookie (httpOnly, sameSite)
+
+### WebSocket Architecture for Real-Time Feedback
+
+When Copilot CLI operations are triggered (Clarify, Analyze, Plan generation), the system uses WebSocket protocol to stream progress updates:
+
+1. **Connection**: On operation start, browser establishes WebSocket connection to backend
+2. **Streaming**: Backend streams messages from Copilot CLI subprocess as they are generated
+3. **Message Format**: Each message includes type (thinking|execution|error|complete), content, and timestamp
+4. **Display**: UI renders messages in real-time in conversation panel, with thinking sections collapsible
+5. **Reconnection**: If WebSocket drops, automatic reconnection with message history retained
+6. **Completion**: On operation complete, WebSocket closes and results are persisted to spec/plan/task files
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: System MUST display a repository selector on application launch that shows recent repositories and a "Browse" option to select any local Git repository
-- **FR-002**: System MUST allow users to select an existing feature branch or create a new one from the selected repository
-- **FR-003**: System MUST display the selected repository name and feature branch as prominent persistent headers in the main interface
-- **FR-004**: System MUST provide tab-based navigation for Spec, Plan, and Task documents that correspond to files in the same spec directory
-- **FR-005**: System MUST load spec.md, plan.md, and task.md files from the feature's spec directory (e.g., `specs/009-redesigned-workflow-ux/`) if they exist
-- **FR-006**: System MUST allow creation of spec.md, plan.md, and task.md files with appropriate templates if they don't already exist
-- **FR-007**: System MUST preserve unsaved changes in a document tab when user switches to another tab
-- **FR-008**: System MUST support creation of new features by invoking Copilot CLI with appropriate speckit commands
-- **FR-009**: System MUST provide a "Clarify" button/action in the Spec tab that triggers the Copilot CLI clarify workflow
-- **FR-010**: System MUST display real-time updates from Copilot CLI execution via WebSocket connection, showing processing status and progress
-- **FR-011**: System MUST capture LLM thinking, reasoning, and execution steps and display them in the conversation panel alongside the async operation
-- **FR-012**: System MUST automatically update the spec.md file with clarifications once the Clarify workflow completes
-- **FR-013**: System MUST provide an "Analyze" button/action in the Task tab that triggers the Copilot CLI analyze workflow
-- **FR-014**: System MUST provide analysis results including task completeness assessment, dependency detection, and identified risks
-- **FR-015**: System MUST support viewing of constitution.md file if it exists (future enhancement ready)
-- **FR-016**: System MUST maintain proper context (repo+feature) when switching between documents or triggering operations
-- **FR-017**: System MUST handle Copilot CLI command execution in the background without blocking the UI
-- **FR-018**: System architecture MUST NOT depend on Streamlit or similar restrictive frameworks to ensure scalability
-- **FR-019**: System MUST use WebSocket protocol for real-time async communication with the Copilot CLI engine
-- **FR-020**: System MUST provide proper error handling and user feedback when repository access fails, files are malformed, or WebSocket connections drop
+#### Authentication & Authorization (P0)
+
+- **FR-AUTH-001**: System MUST display an authentication screen on first launch if user has not yet authenticated with GitHub
+- **FR-AUTH-002**: System MUST accept GitHub Personal Access Token (Classic) via secure input field with masking
+- **FR-AUTH-003**: System MUST validate GitHub token by making a test API call to GitHub (/user endpoint) upon entry
+- **FR-AUTH-004**: System MUST display clear feedback to user indicating whether token validation succeeded or failed
+- **FR-AUTH-005**: System MUST securely store validated GitHub token in browser session (sessionStorage) or secure local storage, NOT persisted to disk
+- **FR-AUTH-006**: System MUST use stored GitHub token in Authorization headers for all GitHub API calls (repo listing, branch creation, file operations)
+- **FR-AUTH-007**: System MUST persist authentication session so user remains logged in across page refreshes (until manual logout or token expiration)
+- **FR-AUTH-008**: System MUST detect expired/invalid tokens when API calls fail with 401 status and prompt user to re-authenticate
+- **FR-AUTH-009**: System MUST provide a "Logout" option in the UI that clears stored token and requires re-authentication on next launch
+- **FR-AUTH-010**: System MUST support future migration to OAuth2 without requiring changes to downstream repo/spec workflows
+
+#### Repository & Feature Management (P1)
+
+- **FR-REPO-001**: System MUST retrieve list of accessible GitHub repositories using authenticated GitHub token and display them to user
+- **FR-REPO-002**: System MUST allow users to select one repository to work with from the authenticated list
+- **FR-REPO-003**: System MUST allow users to manually select a local repository path as an alternative to GitHub-authenticated repos
+- **FR-REPO-004**: System MUST display the selected repository name and feature branch as prominent persistent headers in the main interface
+- **FR-REPO-005**: System MUST retrieve existing feature branches from selected repository and display them with indicators (local vs. remote)
+- **FR-REPO-006**: System MUST allow users to create new feature branches by invoking Copilot CLI create-new-feature.sh script
+- **FR-REPO-007**: System MUST parse JSON output from Copilot CLI scripts to extract branch names and spec file paths
+- **FR-REPO-008**: System MUST allow users to switch repositories or feature branches without losing unsaved work in current documents
+
+#### Document Management & Workflow (P1)
+
+- **FR-DOC-001**: System MUST provide tab-based navigation for Spec, Plan, and Task documents that correspond to files in the same spec directory
+- **FR-DOC-002**: System MUST load spec.md, plan.md, and task.md files from the feature's spec directory (e.g., `specs/009-redesigned-workflow-ux/`) if they exist
+- **FR-DOC-003**: System MUST allow creation of spec.md, plan.md, and task.md files with appropriate Speckit templates if they don't already exist
+- **FR-DOC-004**: System MUST preserve unsaved changes in a document tab when user switches to another tab
+- **FR-DOC-005**: System MUST support viewing of constitution.md file if it exists (future enhancement ready)
+- **FR-DOC-006**: System MUST maintain proper context (repo+feature) when switching between documents or triggering operations
+
+#### Copilot CLI Integration & Operations (P1-P2)
+
+- **FR-CLI-001**: System MUST invoke Copilot CLI as a subprocess for all spec/plan/task generation and enrichment operations
+- **FR-CLI-002**: System MUST pass GitHub token to Copilot CLI via environment variables or command-line arguments for API access
+- **FR-CLI-003**: System MUST support creation of new features by invoking Copilot CLI create-new-feature.sh with appropriate parameters
+- **FR-CLI-004**: System MUST provide a "Clarify" button/action in the Spec tab that triggers the Copilot CLI clarify workflow
+- **FR-CLI-005**: System MUST provide an "Analyze" button/action in the Task tab that triggers the Copilot CLI analyze workflow
+- **FR-CLI-006**: System MUST automatically update spec.md, plan.md, and task.md files once Copilot CLI workflows complete
+- **FR-CLI-007**: System MUST handle Copilot CLI command execution in the background without blocking the UI
+- **FR-CLI-008**: System MUST capture stderr/stdout from Copilot CLI and stream it to the conversation panel via WebSocket
+
+#### Real-Time Communication & Feedback (P2)
+
+- **FR-WS-001**: System MUST establish WebSocket connection between browser and backend when Copilot operations are triggered
+- **FR-WS-002**: System MUST display real-time updates from Copilot CLI execution via WebSocket, showing processing status and progress
+- **FR-WS-003**: System MUST capture LLM thinking, reasoning, and execution steps and display them in the conversation panel alongside the async operation
+- **FR-WS-004**: System MUST stream messages from Copilot CLI with metadata (type: thinking|execution|error|complete, timestamp)
+- **FR-WS-005**: System MUST provide ability to expand/collapse thinking sections in conversation panel for readability
+- **FR-WS-006**: System MUST maintain message history if WebSocket connection temporarily drops and reconnects
+- **FR-WS-007**: System MUST close WebSocket connection gracefully once operation completes and persist results to files
+
+#### Error Handling & Resilience (P1-P2)
+
+- **FR-ERR-001**: System MUST provide proper error handling and user feedback when repository access fails
+- **FR-ERR-002**: System MUST handle cases where spec/plan/task files exist but are malformed or empty
+- **FR-ERR-003**: System MUST handle WebSocket connection drops during Copilot operations with automatic reconnection and message history retention
+- **FR-ERR-004**: System MUST display clear error messages when GitHub token is invalid, expired, or lacks required scopes
+- **FR-ERR-005**: System MUST handle GitHub API rate limiting with user-friendly feedback and retry logic
+- **FR-ERR-006**: System MUST gracefully handle Copilot CLI execution failures with informative error messages
+- **FR-ERR-007**: System MUST detect and handle inaccessible repositories with clear user guidance
+
+#### Architecture & Non-Functional Requirements
+
+- **FR-ARCH-001**: System architecture MUST NOT depend on Streamlit or similar restrictive frameworks to ensure scalability and async capability
+- **FR-ARCH-002**: System MUST be deployable as a modern web application (React/Next.js/Vue.js recommended) with backend API
+- **FR-ARCH-003**: System MUST support backend processing of Copilot CLI workflows independent of frontend
+- **FR-ARCH-004**: System MUST use secure HTTPS for all communication with GitHub API and backend
+- **FR-ARCH-005**: System MUST NOT store GitHub tokens in cookies, localStorage, or files without encryption
 
 ### Key Entities
 
-- **Repository**: A Git repository selected by the user, containing feature branches and spec/plan/task documents
+- **GitHub User**: Authenticated user with GitHub account and valid Personal Access Token
+- **Repository**: A Git repository (local or GitHub-hosted) selected by the user, containing feature branches and spec/plan/task documents
+- **GitHub Token**: Personal Access Token (Classic) with scopes: repo, workflow
 - **Feature Branch**: A Git branch containing a feature specification and associated implementation artifacts
 - **Spec Document**: Specification file (spec.md) containing feature requirements, user scenarios, and acceptance criteria
 - **Plan Document**: Planning document (plan.md) containing implementation roadmap and task breakdown
@@ -180,40 +339,287 @@ The tab interface is designed to support constitution.md as a future child panel
 
 ### Measurable Outcomes
 
-- **SC-001**: Users can select a repository, choose/create a feature, and view the spec/plan/task interface within 10 seconds from application launch
-- **SC-002**: Users can switch between Spec, Plan, and Task tabs without losing unsaved changes or experiencing UI lag (tab switch < 100ms)
-- **SC-003**: When a user triggers Clarify, the system begins streaming updates to the conversation panel via WebSocket within 2 seconds
-- **SC-004**: Real-time conversation updates display with latency < 500ms from Copilot CLI message generation to UI display
-- **SC-005**: Users can read and understand LLM thinking/reasoning with at least 80% of clarification questions resulting in actionable spec updates
-- **SC-006**: The system handles a concurrent WebSocket connection dropping and automatically reconnects without losing message history
-- **SC-007**: Task analysis results are displayed to users within 30 seconds of triggering Analyze (including Copilot CLI execution)
-- **SC-008**: 90% of users successfully complete a full spec → clarify → plan → task workflow in a single session without abandoning the tool
-- **SC-009**: The UI architecture allows adding constitution.md support without requiring changes to the core spec/plan/task tab system
-- **SC-010**: System supports up to 5 concurrent users without performance degradation or WebSocket connection failures
+#### Authentication & Security (P0)
+
+- **SC-AUTH-001**: Users can complete GitHub authentication (token entry and validation) in under 30 seconds
+- **SC-AUTH-002**: GitHub token validation succeeds for valid tokens within 2 seconds (first API call)
+- **SC-AUTH-003**: Invalid/expired tokens are detected and user is prompted to re-authenticate within 1 second of API failure
+- **SC-AUTH-004**: 100% of authentication sessions persist across page refreshes without requiring re-entry (until logout)
+- **SC-AUTH-005**: Zero instances of GitHub tokens appearing in logs, error messages, or unencrypted storage
+
+#### Repository & Feature Selection (P1)
+
+- **SC-REPO-001**: Users can authenticate and see repository list within 10 seconds from application launch
+- **SC-REPO-002**: Repository list loads and displays 100+ repos from GitHub without UI freezing
+- **SC-REPO-003**: User can select a repo, view feature branches, and create a new feature within 15 seconds
+- **SC-REPO-004**: Switching between repos preserves unsaved spec/plan/task content without loss
+
+#### Document & Workflow Management (P1)
+
+- **SC-DOC-001**: Users can switch between Spec, Plan, and Task tabs without losing unsaved changes or experiencing UI lag (tab switch < 100ms)
+- **SC-DOC-002**: Create new spec/plan/task documents from templates within 3 seconds
+- **SC-DOC-003**: Load existing spec/plan/task files within 2 seconds
+
+#### Copilot CLI Integration (P1-P2)
+
+- **SC-CLI-001**: Copilot CLI subprocess launches within 1 second of user triggering operation
+- **SC-CLI-002**: Spec generation via Copilot CLI completes within 60 seconds (including LLM inference)
+- **SC-CLI-003**: Plan generation via Copilot CLI completes within 45 seconds
+- **SC-CLI-004**: Task analysis via Copilot CLI completes within 30 seconds
+
+#### Real-Time Communication (P2)
+
+- **SC-WS-001**: When a user triggers Clarify, WebSocket stream begins within 2 seconds
+- **SC-WS-002**: Real-time conversation updates display with latency < 500ms from Copilot CLI message generation to UI
+- **SC-WS-003**: Users can read and understand LLM thinking/reasoning with at least 80% of clarification questions resulting in actionable spec updates
+- **SC-WS-004**: System handles WebSocket connection drop and automatically reconnects without losing message history
+- **SC-WS-005**: WebSocket can stream up to 500 messages per operation without buffering issues
+
+#### Overall Experience & Completion
+
+- **SC-UX-001**: 90% of users complete full spec → clarify → plan → task workflow in a single session without abandoning tool
+- **SC-UX-002**: Task analysis results display to users within 30 seconds of triggering Analyze
+- **SC-UX-003**: UI architecture allows adding constitution.md support without core spec/plan/task changes
+- **SC-UX-004**: System supports up to 5 concurrent authenticated users without performance degradation
+- **SC-UX-005**: GitHub API rate limits do not block user workflows (proper error handling with retry guidance)
+
+## Authentication Strategy Recommendations *(decision guide)*
+
+### Executive Summary
+
+**Recommended Approach**: Implement **GitHub Personal Access Token (PAT)** authentication for Phase 1, with planned migration to **OAuth2** in Phase 2.
+
+This two-phase strategy balances time-to-market (Phase 1) with enterprise readiness (Phase 2).
+
+### Phase 1: Personal Access Token (PAT) Authentication
+
+**When**: Immediate implementation for MVP and team deployment  
+**Target Users**: Individual developers, small teams, early adopters  
+**Setup Time**: < 5 minutes per user
+
+#### Implementation Details
+
+**Token Generation**:
+- Users visit GitHub Developer Settings: `https://github.com/settings/tokens`
+- Click "Generate new token (classic)" (not fine-grained tokens)
+- Scopes required: `repo` (full control of private repos), `workflow` (read/write GitHub Actions)
+- Copy token (displayed only once)
+
+**Application UI**:
+- On first launch, show authentication screen
+- Provide text area with "Paste your GitHub token" label
+- Include "How to generate a token?" help link pointing to docs
+- Show "Verify Token" button
+- On verification: test API call to `/user` endpoint
+- On success: store in sessionStorage, enable repo selection
+- On failure: display error with instructions
+
+**Token Storage Strategy** (Secure):
+```
+Browser sessionStorage: Token persists in current browser session
+  - Cleared when user closes browser tab/window
+  - Survives page refresh (good UX)
+  - NOT persisted to disk (good security)
+  - NOT in cookies (cannot be sent to backend)
+  
+Alternative (for desktop apps):
+  - System keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+  - Encrypted local storage with user password
+```
+
+**Advantages of Phase 1 PAT Approach**:
+- ✅ No backend OAuth infrastructure needed
+- ✅ Users maintain full token control (can revoke anytime)
+- ✅ No additional GitHub OAuth app registration required
+- ✅ Works with local-only setup (no cloud dependency)
+- ✅ Aligns with Copilot CLI's existing auth model
+- ✅ Faster initial deployment (2-3 weeks)
+- ✅ Clear scoping (only repo/workflow access needed)
+- ✅ No recurring token refresh complexity
+
+**Limitations of Phase 1 PAT Approach**:
+- ⚠️ Users must manually create and manage tokens
+- ⚠️ Requires users to understand GitHub developer settings
+- ⚠️ Token sharing between devices requires re-entry
+- ⚠️ No "Remember me" across devices
+- ⚠️ Less suitable for non-technical stakeholders
+- ⚠️ Does not meet strict enterprise SSO requirements
+
+### Phase 2: OAuth2 Authentication (Enterprise)
+
+**When**: Post-MVP, once product-market fit established  
+**Target Users**: Organizations, enterprises, hosted SaaS deployments  
+**Setup Time**: < 1 minute per user (including redirect)
+
+#### Implementation Details
+
+**GitHub OAuth Application Setup**:
+- Register application at `https://github.com/settings/developers` → "OAuth Apps"
+- Set Authorization callback URL: `https://your-app.com/auth/github/callback`
+- Obtain Client ID and Client Secret (keep secret confidential)
+
+**OAuth2 Flow**:
+```
+1. User clicks "Login with GitHub"
+2. Browser redirects to GitHub authorization URL:
+   https://github.com/login/oauth/authorize
+   ?client_id=YOUR_CLIENT_ID
+   &redirect_uri=YOUR_CALLBACK_URL
+   &scope=repo,workflow
+   
+3. User sees GitHub "Authorize [Your App]" screen
+4. User clicks "Authorize"
+5. GitHub redirects back to callback URL with authorization code
+6. Backend exchanges code for access token (backend-to-backend)
+7. Backend stores access token securely (encrypted, with expiration)
+8. Backend returns session cookie (httpOnly, sameSite)
+9. User's browser uses session cookie for subsequent requests
+10. Token refresh handled server-side (automatic)
+```
+
+**Advantages of Phase 2 OAuth2 Approach**:
+- ✅ Better UX (no manual token copying)
+- ✅ Automatic token refresh (no user action needed)
+- ✅ Token never exposed to frontend (backend-only)
+- ✅ Complies with enterprise security policies
+- ✅ "Remember me" / session persistence across devices
+- ✅ Standards-compliant (OAuth2)
+- ✅ Enables multi-tenant SaaS deployment
+- ✅ Supports revoking user access via UI
+
+**Limitations of Phase 2 OAuth2 Approach**:
+- ⚠️ Requires backend OAuth flow implementation
+- ⚠️ Backend must securely store secrets (Client Secret, tokens)
+- ⚠️ Longer development timeline (4-6 weeks)
+- ⚠️ Requires database for token storage/refresh
+- ⚠️ Additional cloud infrastructure costs
+- ⚠️ Must handle token expiration/refresh edge cases
+
+### Comparison Table: Token vs OAuth2
+
+| Criterion | PAT (Phase 1) | OAuth2 (Phase 2) |
+|-----------|---------------|------------------|
+| **Implementation Effort** | Low (1-2 developers) | Medium (2-3 developers) |
+| **Time to Launch** | 2-3 weeks | 4-6 weeks |
+| **User Setup Effort** | ~5 minutes | < 1 minute |
+| **Technical Complexity** | Low | Medium |
+| **Backend Complexity** | None | Medium |
+| **Token Security** | User-controlled | Server-controlled |
+| **Token Visibility** | Frontend can see | Frontend never sees |
+| **Suitable For Teams** | Yes | Yes |
+| **Suitable for Enterprises** | Limited | Yes |
+| **Compliance (SOC2, etc)** | Partial | Yes |
+| **Multi-device Sessions** | Requires re-entry | Automatic |
+| **Revocation Control** | User (via GitHub) | User + Admin (via app) |
+| **SaaS Deployment** | Possible | Recommended |
+
+### Migration Path: Phase 1 → Phase 2
+
+To make the transition smooth, the Phase 1 PAT implementation should be designed with Phase 2 OAuth2 migration in mind:
+
+**Code Architecture**:
+```
+Phase 1 (PAT):
+  - Store token in sessionStorage
+  - Use token in Authorization headers for GitHub API calls
+  - No backend session needed
+  
+Migration to Phase 2 (OAuth2):
+  - Add backend OAuth flow handler
+  - Change UI to show OAuth button instead of token input
+  - Backend exchanges code for token and creates session
+  - Frontend uses session cookie (automatic with requests)
+  - Old PAT authentication code can be removed
+  - Downstream spec/plan/task code: NO CHANGES needed
+```
+
+**Effort to Migrate**: ~2 weeks (primarily adding backend OAuth flow)  
+**Breaking Changes**: None (if architecture designed properly)
+
+### Recommendation: Token-Based MVP → OAuth2 Enterprise
+
+**For Phase 1 MVP**:
+1. Implement PAT authentication with secure sessionStorage
+2. Build and launch product with GitHub access via token
+3. Gather user feedback on authentication UX
+4. Validate product-market fit
+
+**For Phase 2 Enterprise**:
+1. Add OAuth2 flow to backend (parallel to PAT support)
+2. Add login screen with GitHub OAuth button
+3. Gradually migrate users (PAT support remains for compatibility)
+4. Sunset PAT authentication after 12 months
+
+**Why This Strategy**:
+- Minimizes initial complexity and risk
+- Validates product with real users quickly
+- Maintains flexibility for enterprise requirements later
+- Clear go/no-go decision point after MVP validation
+- Allows learning from PAT-phase usage patterns
+
+### Implementation Checklist (Phase 1)
+
+- [ ] Design authentication UI (token input, error states, help text)
+- [ ] Implement GitHub token validation (test API call to /user)
+- [ ] Implement secure token storage (sessionStorage or keychain)
+- [ ] Add "Logout" button that clears token
+- [ ] Add token expiration detection (401 response handling)
+- [ ] Add "How to generate token" documentation with screenshots
+- [ ] Test token scopes (repo, workflow)
+- [ ] Test token revocation workflow
+- [ ] Add security review for token handling
+- [ ] Plan Phase 2 OAuth2 migration (add to product roadmap)
 
 ## Assumptions
 
+- **GitHub Account**: Users have a GitHub account with active authentication credentials
+- **GitHub Token Access**: Users have access to GitHub developer settings to create Personal Access Tokens
 - **Git Repository Access**: Users have Git installed and can access local repositories with appropriate permissions
 - **Copilot CLI Installation**: Copilot CLI is installed and accessible in the system PATH for the application to invoke
+- **Copilot Authentication**: A valid Copilot token/auth is configured in the Copilot CLI environment
 - **Network Connectivity**: WebSocket connections can be established between the UI application and the Copilot CLI backend service
-- **Browser Environment**: The application is modern web-based and requires a current browser (Chrome, Safari, Edge, Firefox)
-- **File System Access**: The application has read/write access to the repository directories and spec file structures
-- **User Familiarity**: Users have basic understanding of Git workflows and feature branches
-- **Template Availability**: spec.md, plan.md, and task.md templates are available from Copilot CLI for new documents
+- **Browser Environment**: The application runs in a modern web browser (Chrome, Safari, Edge, Firefox)
+- **File System Access**: The application has read/write access to repository directories and spec file structures
+- **User Familiarity**: Users understand Git workflows and feature branches
+- **Template Availability**: Speckit templates (spec.md, plan.md, task.md) are available and properly formatted
 
 ## Dependencies and Integrations
 
-- **Copilot CLI**: Backend engine responsible for spec/clarify/plan/analyze/task/implement workflows
-- **Git**: Repository and branch management
-- **WebSocket Protocol**: Real-time communication between UI and backend
-- **Modern Web Framework**: (Not Streamlit) - TBD during planning phase for execution details
+**External Services**:
+- **GitHub API**: Required for repository listing, branch creation, file operations (authenticated via PAT or OAuth2 token)
+- **Copilot CLI**: Backend engine for spec/clarify/plan/analyze/task/implement workflows (subprocess-based execution)
+- **GitHub Copilot**: LLM inference engine used by Copilot CLI for content generation and analysis
+
+**Infrastructure**:
+- **Git**: Local repository and branch management
+- **WebSocket Protocol**: Real-time communication between browser and backend
+- **Modern Web Framework**: React, Next.js, Vue.js, or Svelte (NOT Streamlit or Flask-based single-file apps)
+- **Backend Runtime**: Node.js, Python, or similar capable of subprocess management and WebSocket support
+
+**Security**:
+- **HTTPS**: All communication with GitHub API and backend
+- **Secure Storage**: GitHub tokens stored in browser sessionStorage or encrypted local storage
+- **OAuth2 (Future)**: Path for Phase 2 migration to enterprise authentication model
 
 ## Out of Scope (for this phase)
 
 - Direct code implementation or commit automation
-- Integration with other project management tools (Jira, Linear, etc.)
-- Advanced Git features (merge conflict resolution, rebase management)
-- Multi-user real-time collaboration on the same spec/plan/task documents
+- Integration with other project management tools (Jira, Linear, GitHub Projects, etc.)
+- Advanced Git features (merge conflict resolution, rebase management, force push)
+- Multi-user real-time collaboration on the same spec/plan/task documents (same-document simultaneous editing)
 - Integration of constitution.md (scheduled for future phase as P3)
 - Mobile application version
-- Offline mode or local-only operation
+- Offline mode or local-only operation without GitHub
+- Advanced permissions/access control (admin vs. contributor roles)
+- Usage analytics and telemetry
+- SAML/Enterprise SSO (reserved for Phase 2 after OAuth2)
+
+## Future Enhancements (Post-MVP)
+
+- **Phase 2 - OAuth2 Integration**: GitHub OAuth2 login flow for enterprise users
+- **Phase 2 - Constitution.md**: Document defining project principles and standards
+- **Phase 2 - Multi-tenant**: Support for organizational repositories and shared workspaces
+- **Phase 3 - Git Integration**: Automatic branching, commits, pull requests
+- **Phase 3 - Integrations**: Jira, Linear, GitHub Projects, Slack notifications
+- **Phase 3 - Advanced Workflows**: Test automation integration, CI/CD pipeline triggers
+- **Phase 4 - Mobile**: Native mobile app with similar spec/plan/task workflow
