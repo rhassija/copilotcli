@@ -5,7 +5,7 @@
 **Branch**: `001-spec-generator`  
 **Status**: POC (Prototype)  
 **Phase**: Minimal Viable Platform (Streamlit-Based)  
-**Constitution Version**: 1.0.1  
+**Constitution Version**: 1.1.0  
 
 ## Overview
 
@@ -16,7 +16,7 @@ Business User (Natural Language)
          ↓
     Streamlit UX
          ↓
-   /specify Command
+      Speckit Scaffold + Copilot CLI
          ↓
    Agent Activity (Real-Time Stream)
          ↓
@@ -80,7 +80,8 @@ and reset their passwords via email"
 
 Click **"📤 Submit Requirement"** and observe:
 - Agent activity streams in real-time
-- `/specify` command executes
+- Speckit scaffolding runs (feature folder + template)
+- Copilot CLI enriches the spec
 - Processing status updates
 
 ### 3. Review Specification
@@ -94,7 +95,7 @@ Once complete, the generated `spec.md` displays:
 ### 4. Request Changes (P2 Feature)
 
 Update your requirement and resubmit. The system:
-- Re-invokes `/specify` with combined context
+- Re-runs Copilot CLI enrichment with combined context
 - Generates updated spec.md
 - Commits changes to Git
 
@@ -126,7 +127,7 @@ copilotcli/
 - **Output**: Real-time activity log, generated spec.md
 
 ### Backend (Orchestration Layer)
-- **Engine**: Speckit CLI (`/specify` command)
+- **Engine**: Speckit scaffolding + Copilot CLI enrichment
 - **Purpose**: Transform requirement → specification
 - **Input**: Natural language requirement
 - **Output**: spec.md with user stories, requirements, success criteria
@@ -139,7 +140,7 @@ copilotcli/
 ### Environment
 - **Python**: 3.13.11 (copilotcompanion pyenv)
 - **Virtual Env**: `~/.pyenv/versions/3.13.11/envs/copilotcompanion`
-- **CLI Access**: `/specify` command (from Speckit)
+- **CLI Access**: Speckit scaffolding + Copilot CLI
 
 ## Success Criteria (POC Phase)
 
@@ -189,18 +190,18 @@ Expected:
 ## Known Limitations (POC Phase)
 
 1. **No queuing**: Only one request at a time. Subsequent requests display "Please wait" message.
-2. **Simulated output**: `/specify` command execution is stubbed for demo. Production will invoke Speckit CLI directly.
-3. **No authentication**: Localhost development only. Phase 2 will add GitHub SSO.
+2. **Copilot auth required**: Copilot CLI must be authenticated in a terminal session.
+3. **No approval workflow**: Users view specs but cannot explicit approve/reject. Phase 1 will add this.
 4. **Minimal error recovery**: Timeouts/failures show raw messages. Phase 2 will add retry logic.
-5. **No approval workflow**: Users view specs but cannot explicit approve/reject. Phase 1 will add this.
+5. **Single-repo targeting**: The app writes to the current repo only (repo selector pending).
 
 ## Next Steps (Phase 1 & Beyond)
 
 ### Phase 1: Validation & Iteration
 - [ ] Gather feedback from business users
 - [ ] Add approval workflow (approve/request-changes buttons)
-- [ ] Integrate actual Speckit CLI invocation
-- [ ] Add GitHub authentication
+- [ ] Add repo/branch selection
+- [ ] Add Copilot auth status checks + guidance
 - [ ] Version history for specs
 
 ### Phase 2: Production UX
@@ -211,9 +212,9 @@ Expected:
 - [ ] Deploy to production infrastructure
 
 ### Phase 3: Full Integration
-- [ ] Connect `/plan` command (generate implementation plans)
-- [ ] Connect `/tasks` command (break down into developer tasks)
-- [ ] Connect `/implement` command (code generation)
+- [ ] Connect `/plan` workflow (generate implementation plans)
+- [ ] Connect `/tasks` workflow (break down into developer tasks)
+- [ ] Connect `/implement` workflow (code generation)
 - [ ] Full SDLC pipeline in single UI
 
 ## Configuration
@@ -261,7 +262,7 @@ eval "$(pyenv init --path)"
 pyenv activate copilotcompanion
 ```
 
-**Issue**: "/specify command not found"
+**Issue**: "Copilot CLI not authenticated"
 ```bash
 # Solution: Ensure Speckit CLI is installed in copilotcompanion env
 pip install speckit  # or invoke from other location

@@ -1,358 +1,473 @@
 """
-Copilot SDLC POC - Streamlit UX for Natural Language Spec Generation
+Copilot SDLC POC - Streamlit UX with Speckit + Copilot CLI enrichment.
+Creates feature branches and fills specs using Copilot when available.
 
-This application provides a minimal POC interface for business users to:
-1. Enter natural language requirements
-2. Invoke /specify command from Speckit  
-3. View agent activity in real-time
-4. Review and update generated specifications
-
-Architecture:
-- Frontend: Streamlit (web UI)
-- Backend: Speckit CLI invocation via subprocess
-- Environment: copilotcompanion (pyenv Python 3.13.11)
-- Data: Git-backed (specs/ directory)
-
-Constitution: v1.0.1 - Streamlit POC Phase
+Notes for migration:
+- Speckit provides scaffolding; Copilot CLI enriches content.
+- The app is a thin orchestrator with minimal business logic.
+- Replace CLI calls with SDK calls when available.
 """
 
 import streamlit as st
 import subprocess
 import json
-import os
-import sys
+import time
 from pathlib import Path
 from datetime import datetime
-import threading
-import queue
-import re
+import sys
+import os
 
-# ============================================================================
 # Configuration
-# ============================================================================
-
-REPO_ROOT = Path(__file__).parent.parent.parent  # /Users/rajeshhassija/Documents/GitHub/copilotcli
-SPECS_DIR = REPO_ROOT / "specs" / "001-spec-generator"
-SPEC_FILE = SPECS_DIR / "spec.md"
-PYTHON_ENV = os.environ.get("VIRTUAL_ENV", "copilotcompanion")
+REPO_ROOT = Path(__file__).parent.parent.parent
+SPECS_DIR = REPO_ROOT / "specs"
+COPILOT_PATH = Path.home() / "Library/Application Support/Code/User/globalStorage/github.copilot-chat/copilotCli/copilot"
 
 st.set_page_config(
     page_title="Copilot SDLC - Spec Generator POC",
     page_icon="🚀",
     layout="wide",
-    initial_sidebar_state="expanded"
 )
 
+# Initialize session state (kept minimal for Streamlit rerun model)
+if "processing" not in st.session_state:
+    st.session_state.processing = False
+if "activity_lines" not in st.session_state:
+    st.session_state.activity_lines = []
+if "spec_text" not in st.session_state:
+    st.session_state.spec_text = None
+if "done" not in st.session_state:
+    st.session_state.done = False
+if "current_requirement" not in st.session_state:
+    st.session_state.current_requirement = None
+if "step_index" not in st.session_state:
+    st.session_state.step_index = 0
+if "error_message" not in st.session_state:
+    st.session_state.error_message = None
+if "feature_branch" not in st.session_state:
+    st.session_state.feature_branch = None
+if "use_copilot" not in st.session_state:
+    st.session_state.use_copilot = True
+if "model_name" not in st.session_state:
+    st.session_state.model_name = ""
+
 # ============================================================================
-# State Management (Streamlit Session State)
+# Helper Functions
 # ============================================================================
 
-if "spec_content" not in st.session_state:
-    st.session_state.spec_content = None
-if "activity_log" not in st.session_state:
-    st.session_state.activity_log = []
-if "is_processing" not in st.session_state:
-    st.session_state.is_processing = False
-if "last_requirement" not in st.session_state:
-    st.session_state.last_requirement = ""
-if "status_message" not in st.session_state:
-    st.session_state.status_message = ""
-
-# ============================================================================
-# Utility Functions
-# ============================================================================
-
-def get_speckit_command():
-    """Get the /specify command from Speckit CLI."""
-    # In a real implementation, this would invoke: speckit /specify <requirement>
-    # For POC, we'll simulate or invoke the actual command if available
-    return "speckit"
-
-def stream_command_output(cmd, callback=None):
+def run_speckit_command(requirement: str):
     """
-    Stream subprocess output in real-time to callback.
-    
-    Args:
-        cmd: Command to execute (list of strings)
-        callback: Function to call with each output line
-    
-    Returns:
-        (return_code, all_output_text)
+    Execute the Speckit workflow:
+    1. Create feature branch with create-new-feature.sh
+    2. Generate spec.md from the template
     """
     try:
+        yield "🔄 Initializing Speckit specification engine..."
+        yield f"📝 Processing requirement: '{requirement[:50]}{'...' if len(requirement) > 50 else ''}'"
+        
+        # Step 1: Create feature branch using Speckit's script
+        yield "🌳 Creating feature branch..."
+        
+        create_feature_script = REPO_ROOT / ".specify/scripts/bash/create-new-feature.sh"
+        if not create_feature_script.exists():
+            yield "❌ Speckit scripts not found. Run: uvx --from git+https://github.com/github/spec-kit.git specify init ."
+            return None
+        
+        # Run create-new-feature.sh with JSON output to capture branch name
+        cmd = [
+            "bash",
+            str(create_feature_script),
+            "--json",
+            requirement
+        ]
+        
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,  # Redirect stderr to stdout for unified stream
+            stderr=subprocess.PIPE,
             text=True,
-            bufsize=1  # Line-buffered
+            cwd=str(REPO_ROOT)
         )
         
-        all_output = []
-        for line in process.stdout:
-            line = line.rstrip('\n')
-            all_output.append(line)
-            if callback:
-                callback(line)
+        # Capture output
+        stdout, stderr = process.communicate()
         
-        return_code = process.wait()
-        return return_code, "\n".join(all_output)
-    
+        if process.returncode != 0 and stderr:
+            yield f"📊 Branch creation message: {stderr.strip()[:100]}"
+        
+        # Parse JSON output to get branch name
+        feature_branch = None
+        spec_file = None
+        try:
+            for line in stdout.split('\n'):
+                if line.strip().startswith('{'):
+                    data = json.loads(line)
+                    if "BRANCH_NAME" in data:
+                        feature_branch = data["BRANCH_NAME"]
+                        st.session_state.feature_branch = feature_branch
+                        yield f"✅ Branch created: {feature_branch}"
+                    if "SPEC_FILE" in data:
+                        spec_file = data["SPEC_FILE"]
+        except json.JSONDecodeError:
+            pass
+        
+        if not spec_file:
+            yield "❌ Could not determine spec file path"
+            return None
+        
+        yield "📄 Generating specification from template..."
+        time.sleep(0.5)
+
+        # Step 2: Generate spec.md (Copilot-enriched when available)
+        template_path = REPO_ROOT / ".specify/templates/spec-template.md"
+        template_text = template_path.read_text() if template_path.exists() else ""
+
+        spec_content = None
+        if st.session_state.use_copilot:
+            yield "🤖 Enriching spec with Copilot CLI..."
+            spec_content = enrich_spec_with_copilot(
+                requirement=requirement,
+                template_text=template_text,
+                model_name=st.session_state.model_name.strip() or None,
+            )
+            if spec_content:
+                yield "✅ Copilot enrichment complete"
+            else:
+                yield "⚠️ Copilot enrichment unavailable, using template defaults"
+
+        if not spec_content:
+            spec_content = generate_spec_from_template(requirement)
+        
+        # Write spec file to the feature folder created by Speckit
+        spec_path = Path(spec_file)
+        spec_path.parent.mkdir(parents=True, exist_ok=True)
+        spec_path.write_text(spec_content)
+        
+        yield "✅ Specification generated successfully!"
+        return spec_content
+            
     except Exception as e:
-        error_msg = f"Error executing command: {str(e)}"
-        if callback:
-            callback(error_msg)
-        return 1, error_msg
+        yield f"❌ Error: {str(e)[:100]}"
+        return None
 
-def execute_specify_command(requirement: str):
-    """
-    Execute /specify command with the given requirement.
-    
-    This is a stub that would invoke: speckit /specify "requirement"
-    For POC, we'll prepare the invocation (actual CLI integration TBD).
-    
-    Args:
-        requirement: User's natural language requirement
-    
-    Yields:
-        (status_str, is_complete_bool)
-    """
-    yield ("Preparing specification generation...", False)
-    
-    # Validate requirement
-    if not requirement or not requirement.strip():
-        yield ("Error: Requirement cannot be empty", True)
-        return
-    
-    # Prepare command - this would be the actual speckit invocation
-    # For POC, we'll use a placeholder that shows how CLI would be called
-    cmd = ["echo", f"[SPECKIT /specify] Processing requirement: {requirement}"]
-    
-    # In production, this would be:
-    # cmd = ["speckit", "/specify", requirement]
-    # cmd_str = " ".join(cmd)
-    # Note: actual --json option would be: speckit /specify --json requirement
-    
-    try:
-        # Create output directory
-        SPECS_DIR.mkdir(parents=True, exist_ok=True)
-        
-        # Execute command and stream output
-        def log_output(line):
-            st.session_state.activity_log.append(line)
-        
-        yield ("Executing /specify command...", False)
-        return_code, output = stream_command_output(cmd, callback=log_output)
-        
-        if return_code != 0:
-            yield (f"Command failed with exit code {return_code}", True)
-            return
-        
-        # Generate sample spec.md for POC demo
-        # In real implementation, /specify would generate this
-        sample_spec = f"""# Feature Specification: {requirement}
 
-**Feature Branch**: `001-spec-generator`  
-**Created**: {datetime.now().strftime('%Y-%m-%d')}  
-**Status**: Draft  
-**Input**: User requirement: "{requirement}"
+def generate_spec_from_template(requirement: str) -> str:
+    """Generate a proper specification from the Speckit template."""
+    template_path = REPO_ROOT / ".specify/templates/spec-template.md"
+    
+    if not template_path.exists():
+        # Fallback if template not found
+        return f"""# Feature Specification: {requirement}
 
 ## User Scenarios & Testing
 
-### User Story 1 - Primary Implementation (Priority: P1)
+### User Story 1 - Implementation (Priority: P1)
 
-A user can complete the primary use case described in the requirement.
+{requirement}
 
 **Acceptance Scenarios**:
-1. **Given** the system is ready, **When** user interacts, **Then** the feature works as described
-2. **Given** the feature is complete, **When** user tests it, **Then** it meets the requirement
+- Feature works as described
+- User can interact with it
+- All requirements are met
 
-## Requirements
+## Functional Requirements
 
-### Functional Requirements
-
-- **FR-001**: System MUST implement the described feature
-- **FR-002**: System MUST validate user inputs appropriately
-- **FR-003**: System MUST provide clear feedback to users
-
-### Key Entities
-
-- **Requirement**: {requirement}
+- System MUST implement: {requirement}
+- Validate user inputs
+- Provide clear feedback
+- Handle errors gracefully
 
 ## Success Criteria
 
-### Measurable Outcomes
-
-- **SC-001**: Feature successfully implements the user requirement
-- **SC-002**: All acceptance scenarios pass
-- **SC-003**: No critical errors during execution
-
----
-*Generated by Copilot SDLC POC - {datetime.now().isoformat()}*
+- Feature is complete and tested
+- No critical errors
+- Performance is acceptable
 """
-        
-        # Write spec.md (simulated - in real implementation, /specify would produce this)
-        with open(SPEC_FILE, 'w') as f:
-            f.write(sample_spec)
-        
-        st.session_state.spec_content = sample_spec
-        yield (f"✅ Specification generated successfully: {SPEC_FILE}", True)
-        
-    except Exception as e:
-        yield (f"❌ Error: {str(e)}", True)
-
-# ============================================================================
-# UI Components
-# ============================================================================
-
-def render_header():
-    """Render page header."""
-    st.markdown("""
-    <div style='text-align: center; padding: 20px;'>
-        <h1>🚀 Copilot SDLC - Spec Generator POC</h1>
-        <p><em>Natural Language → Specification Generation (Constitution v1.0.1)</em></p>
-    </div>
-    """, unsafe_allow_html=True)
     
-    st.divider()
+    # Read template
+    template = template_path.read_text()
+    
+    # Generate a minimal, readable spec based on the template
+    from datetime import datetime
+    
+    # Create user stories from requirement
+    spec = template
+    spec = spec.replace("[FEATURE NAME]", requirement)
+    spec = spec.replace("[###-feature-name]", st.session_state.feature_branch or "###-feature")
+    spec = spec.replace("[DATE]", datetime.now().strftime('%Y-%m-%d'))
+    spec = spec.replace("$ARGUMENTS", requirement)
+    
+    # Add basic user stories if template format is present
+    if "[Brief Title]" in spec:
+        story1 = f"""### User Story 1 - Implement {requirement[:40]} (Priority: P1)
 
-def render_input_section():
-    """Render requirement input section."""
+The system must implement: {requirement}
+
+**Why this priority**: This is the core functionality requested.
+
+**Independent Test**: User can {requirement.lower()} without errors
+
+**Acceptance Scenarios**:
+1. **Given** user wants to use this feature, **When** they submit a request, **Then** the system processes it successfully
+2. **Given** valid input, **When** feature is used, **Then** the output is correct
+"""
+        spec = spec.replace("### User Story 1 - [Brief Title]", story1)
+    
+    return spec
+
+
+def enrich_spec_with_copilot(requirement: str, template_text: str, model_name: str | None) -> str | None:
+    """Use Copilot CLI to generate a filled spec from the template."""
+    if not COPILOT_PATH.exists():
+        return None
+
+    prompt_parts = [
+        "You are generating a product specification for non-technical stakeholders.",
+        "Fill the template completely with clear, testable requirements.",
+        "Do NOT include implementation details, frameworks, or code.",
+        "Return only the completed markdown spec.",
+        "",
+        "User requirement:",
+        requirement,
+        "",
+        "Template:",
+        template_text or "(No template found. Create a full spec with sections for User Scenarios & Testing, Functional Requirements, Success Criteria, Assumptions, and Out of Scope.)",
+    ]
+    prompt = "\n".join(prompt_parts)
+
+    # CLI call is the integration seam; replace with SDK calls in production.
+    cmd = [str(COPILOT_PATH), "-p", prompt, "--allow-all-tools"]
+    if model_name:
+        cmd.extend(["--model", model_name])
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(REPO_ROOT))
+        if result.returncode != 0:
+            return None
+
+        output = (result.stdout or "").strip()
+        if not output:
+            return None
+
+        return output
+    except Exception:
+        return None
+
+def read_generated_spec(feature_branch: str = None):
+    """
+    Read the generated spec.md file from the feature directory.
+    """
+    try:
+        if feature_branch:
+            spec_path = REPO_ROOT / "specs" / feature_branch / "spec.md"
+        else:
+            # Fallback: look for most recent spec.md
+            specs_dir = REPO_ROOT / "specs"
+            spec_paths = list(specs_dir.glob("*/spec.md"))
+            if not spec_paths:
+                return None
+            spec_path = max(spec_paths, key=lambda p: p.stat().st_mtime)
+        
+        if spec_path.exists():
+            return spec_path.read_text()
+        return None
+    except Exception as e:
+        st.error(f"Error reading spec: {e}")
+        return None
+
+# ============================================================================
+# Layout
+# ============================================================================
+
+st.markdown("""
+<div style='text-align: center; padding: 20px;'>
+    <h1>🚀 Copilot SDLC - Spec Generator POC</h1>
+    <p>Real Speckit Integration | Natural Language → Specification</p>
+</div>
+""", unsafe_allow_html=True)
+
+st.divider()
+
+# Two columns
+col_left, col_right = st.columns([1, 1], gap="large")
+
+# ============================================================================
+# LEFT COLUMN
+# ============================================================================
+
+with col_left:
     st.subheader("📝 Enter Your Requirement")
     
     requirement = st.text_area(
-        label="What feature or capability do you want to build?",
+        "What feature do you want to build?",
         placeholder="Example: Create a user authentication system with password reset",
         height=100,
-        key="requirement_input"
+        disabled=st.session_state.processing,
     )
     
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.info("💡 Tip: Be specific and detailed. The clearer your requirement, the better the specification.")
-    with col2:
-        submit_button = st.button(
-            "📤 Submit Requirement",
-            use_container_width=True,
-            type="primary",
-            disabled=st.session_state.is_processing
-        )
+    submit_btn = st.button(
+        "📤 Submit",
+        type="primary",
+        use_container_width=True,
+        disabled=st.session_state.processing or not requirement.strip(),
+    )
     
-    return requirement, submit_button
-
-def render_activity_log():
-    """Render real-time activity log."""
-    st.subheader("🔄 Agent Activity (Real-Time)")
+    st.subheader("🔄 Agent Activity")
     
-    activity_container = st.container(border=True)
-    
-    with activity_container:
-        if st.session_state.activity_log:
-            for line in st.session_state.activity_log:
-                st.code(line, language="text")
+    # Activity log container
+    with st.container(border=True, height=350):
+        if st.session_state.activity_lines:
+            for line in st.session_state.activity_lines:
+                if line.startswith("✅"):
+                    st.success(line)
+                elif line.startswith("❌"):
+                    st.error(line)
+                elif line.startswith("✓") or line.startswith("🌳"):
+                    st.info(line)
+                else:
+                    st.write(line)
         else:
-            st.info("Activity will appear here when processing begins...")
+            st.info("👆 Submit a requirement to see activity...")
+
+# ============================================================================
+# RIGHT COLUMN
+# ============================================================================
+
+with col_right:
+    if st.session_state.processing:
+        st.info("⏳ Speckit is processing your requirement...")
+    elif st.session_state.done:
+        st.success("✅ Specification generated successfully!")
+        if st.session_state.feature_branch:
+            st.caption(f"Branch: `{st.session_state.feature_branch}`")
+        if st.session_state.use_copilot:
+            model_label = st.session_state.model_name.strip() or "default"
+            st.caption(f"Copilot model: {model_label}")
     
-    return activity_container
-
-def render_status():
-    """Render status message."""
-    if st.session_state.status_message:
-        if "✅" in st.session_state.status_message or "successfully" in st.session_state.status_message.lower():
-            st.success(st.session_state.status_message)
-        elif "❌" in st.session_state.status_message or "error" in st.session_state.status_message.lower():
-            st.error(st.session_state.status_message)
-        else:
-            st.info(st.session_state.status_message)
-
-def render_spec_viewer():
-    """Render specification viewer."""
-    if st.session_state.spec_content:
+    if st.session_state.error_message:
+        st.error(f"Error: {st.session_state.error_message}")
+    
+    if st.session_state.spec_text:
         st.subheader("📄 Generated Specification")
-        
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.markdown(st.session_state.spec_content)
-        with col2:
-            st.markdown("**📌 Spec Info:**")
-            st.write(f"Location: `{SPEC_FILE}`")
-            st.write(f"Status: `Draft`")
-            if st.button("🔄 Refresh Spec"):
-                st.rerun()
+        with st.container(border=True, height=400):
+            st.markdown(st.session_state.spec_text)
 
 # ============================================================================
-# Main App Logic
+# Main Processing Logic
 # ============================================================================
 
-def main():
-    """Main application entry point."""
+# Step 1: Handle submit button (starts a new run)
+if submit_btn:
+    st.session_state.current_requirement = requirement
+    st.session_state.processing = True
+    st.session_state.activity_lines = []
+    st.session_state.done = False
+    st.session_state.step_index = 0
+    st.session_state.error_message = None
+    st.session_state.feature_branch = None
+    st.rerun()
+
+# Step 2: Process ONE step per rerun (prevents infinite rerun loops)
+if st.session_state.processing and not st.session_state.done:
+    # First time - start the generator
+    if "generator" not in st.session_state:
+        st.session_state.generator = run_speckit_command(st.session_state.current_requirement)
     
-    render_header()
-    
-    # Left column: Input and activity
-    col_left, col_right = st.columns([1, 1])
-    
-    with col_left:
-        requirement, submit_button = render_input_section()
-        render_activity_log()
-    
-    with col_right:
-        render_status()
-        render_spec_viewer()
-    
-    # Process form submission
-    if submit_button:
-        st.session_state.is_processing = True
-        st.session_state.activity_log = []
-        st.session_state.status_message = ""
-        st.session_state.last_requirement = requirement
-        
-        try:
-            # Execute /specify command and stream output
-            for status, is_complete in execute_specify_command(requirement):
-                st.session_state.status_message = status
-                st.rerun()
-                if is_complete:
-                    break
-        
-        except Exception as e:
-            st.session_state.status_message = f"❌ Unexpected error: {str(e)}"
-        
-        finally:
-            st.session_state.is_processing = False
-        
+    # Get next activity update
+    try:
+        activity = next(st.session_state.generator)
+        st.session_state.activity_lines.append(activity)
+        time.sleep(0.1)
         st.rerun()
-    
-    # Sidebar: Info & Configuration
-    with st.sidebar:
-        st.markdown("### 📚 POC Information")
-        st.info("""
-        **Phase**: Minimal POC  
-        **Goal**: Validate natural language → `/specify` → spec generation workflow  
-        **Environment**: copilotcompanion (pyenv)  
-        **Status**: Beta Testing
-        """)
+    except StopIteration as e:
+        # Generator exhausted - processing complete
+        spec_content = read_generated_spec(st.session_state.feature_branch)
         
-        st.markdown("### ⚙️ Configuration")
-        st.write(f"**Repo Root**: `{REPO_ROOT}`")
-        st.write(f"**Specs Dir**: `{SPECS_DIR}`")
-        st.write(f"**Python**: `{sys.version.split()[0]}`")
+        if spec_content:
+            st.session_state.spec_text = spec_content
+            st.session_state.done = True
+        else:
+            st.session_state.error_message = "Could not read generated specification file"
+            st.session_state.done = True
         
-        st.markdown("### 📖 How It Works")
-        st.markdown("""
-        1. **Enter** your feature requirement in plain English
-        2. **Click** "Submit Requirement"
-        3. **Watch** agent activity stream in real-time
-        4. **Review** generated specification when complete
-        5. **Request** changes by submitting updated requirement
-        """)
-        
-        st.divider()
-        
-        if st.button("🔄 Clear Activity Log"):
-            st.session_state.activity_log = []
-            st.session_state.spec_content = None
-            st.rerun()
+        st.session_state.processing = False
+        del st.session_state.generator
+        st.rerun()
 
-if __name__ == "__main__":
-    main()
+# ============================================================================
+# Sidebar
+# ============================================================================
+
+with st.sidebar:
+    st.markdown("### 📚 About")
+    st.info("""
+    **Phase**: POC with Real Speckit
+    
+    **Goal**: Natural language → Real specification via Speckit
+    
+    **Status**: 🔴 Live Speckit Integration
+    """)
+    
+    st.markdown("### ⚙️ System")
+    st.write(f"Repo: `{REPO_ROOT.name}`")
+    st.write(f"Specs: `specs/`")
+    st.write(f"Tool: Speckit via uvx")
+    
+    st.markdown("### 🔧 Tools")
+    
+    # Check uvx
+    try:
+        result = subprocess.run(["which", "uvx"], capture_output=True, text=True)
+        if result.returncode == 0:
+            st.success("✅ uvx available")
+        else:
+            st.warning("⚠️ uvx not found")
+    except:
+        st.warning("⚠️ uvx check failed")
+    
+    # Check Copilot CLI
+    if COPILOT_PATH.exists():
+        st.success("✅ Copilot CLI available")
+    else:
+        st.warning("⚠️ Copilot CLI not found")
+
+    # Check Copilot auth (best-effort via env tokens)
+    token_envs = ["COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"]
+    has_token = any(os.getenv(name) for name in token_envs)
+    if has_token:
+        st.success("✅ Copilot auth token detected")
+    else:
+        st.info("ℹ️ Copilot auth not detected (run `copilot` then `/login`) ")
+
+    st.markdown("### 🤖 Copilot Enrichment")
+    st.session_state.use_copilot = st.checkbox(
+        "Enable Copilot enrichment",
+        value=st.session_state.use_copilot,
+        help="Uses Copilot CLI to fill the spec template",
+    )
+    st.session_state.model_name = st.text_input(
+        "Model (optional)",
+        value=st.session_state.model_name,
+        placeholder="e.g., gpt-5",
+        help="Leave empty to use Copilot default model",
+    )
+    
+    st.markdown("### 📖 Steps")
+    st.markdown("""
+    1. Type requirement
+    2. Click Submit
+    3. Watch Speckit process (left)
+    4. Review generated spec (right)
+    """)
+    
+    if st.button("🔄 Clear"):
+        st.session_state.activity_lines = []
+        st.session_state.spec_text = None
+        st.session_state.processing = False
+        st.session_state.done = False
+        st.session_state.step_index = 0
+        st.session_state.current_requirement = None
+        st.session_state.error_message = None
+        st.session_state.feature_branch = None
+        if "generator" in st.session_state:
+            del st.session_state.generator
+        st.rerun()
