@@ -278,6 +278,16 @@ class GitHubClient:
     
     def _convert_repository(self, github_repo: GithubRepository) -> Repository:
         """Convert PyGithub Repository to our Repository model."""
+        # Convert permissions object to dict if it exists
+        permissions = getattr(github_repo, "permissions", None)
+        if permissions is not None and hasattr(permissions, '__dict__'):
+            # Convert PyGithub Permissions object to dict
+            permissions = {
+                "admin": getattr(permissions, "admin", False),
+                "push": getattr(permissions, "push", False),
+                "pull": getattr(permissions, "pull", False),
+            }
+        
         return Repository(
             id=github_repo.id,
             node_id=github_repo.node_id,
@@ -292,6 +302,7 @@ class GitHubClient:
             private=github_repo.private,
             description=github_repo.description,
             html_url=github_repo.html_url,
+            url=github_repo.url,
             clone_url=github_repo.clone_url,
             git_url=github_repo.git_url,
             ssh_url=github_repo.ssh_url,
@@ -312,7 +323,7 @@ class GitHubClient:
             archived=github_repo.archived,
             disabled=getattr(github_repo, "disabled", False),
             visibility=getattr(github_repo, "visibility", "private" if github_repo.private else "public"),
-            permissions=getattr(github_repo, "permissions", None),
+            permissions=permissions,
             language=github_repo.language,
             topics=github_repo.get_topics() if hasattr(github_repo, "get_topics") else []
         )

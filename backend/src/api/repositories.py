@@ -46,14 +46,13 @@ async def get_github_client(
     Raises:
         HTTPException: If session invalid or token missing
     """
-    session = auth_service.get_session(x_session_id)
-    if not session:
+    token = auth_service.get_session_token(x_session_id)
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired session"
         )
     
-    token = auth_service.decrypt_token(session.encrypted_token)
     return GitHubClient(token)
 
 
