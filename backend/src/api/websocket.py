@@ -24,7 +24,7 @@ from src.models.websocket import (
     WebSocketConnectRequest,
     WebSocketConnectResponse,
     MessageReplayRequest,
-    MessageAcknowledgmentRequest
+    MessageAcknowledgment
 )
 from src.services.websocket_manager import connection_manager
 from src.services.auth_service import auth_service
