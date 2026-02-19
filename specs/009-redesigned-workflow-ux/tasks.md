@@ -88,11 +88,11 @@
 
 ### Backend Foundation: Models & Database Abstraction
 
-- [ ] T021 [P] Create auth models in `backend/src/models/auth.py`: User, AuthSession, Token
-- [ ] T022 [P] Create repo models in `backend/src/models/github.py`: Repository, Branch, Feature
-- [ ] T023 [P] Create document models in `backend/src/models/documents.py`: Spec, Plan, Task, AnalysisResult
-- [ ] T024 [P] Create WebSocket models in `backend/src/models/websocket.py`: WebSocketSession, WebSocketMessage
-- [ ] T025 Implement in-memory storage layer in `backend/src/services/storage.py` (Phase 1 - no database)
+- [X] T021 [P] Create auth models in `backend/src/models/auth.py`: User, AuthSession, Token
+- [X] T022 [P] Create repo models in `backend/src/models/github.py`: Repository, Branch, Feature
+- [X] T023 [P] Create document models in `backend/src/models/documents.py`: Spec, Plan, Task, AnalysisResult
+- [X] T024 [P] Create WebSocket models in `backend/src/models/websocket.py`: WebSocketSession, WebSocketMessage
+- [X] T025 Implement in-memory storage layer in `backend/src/services/storage.py` (Phase 1 - no database)
 
 ### Backend Foundation: GitHub API Client
 
