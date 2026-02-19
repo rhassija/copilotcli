@@ -44,7 +44,10 @@ class AuthService {
   private loadState(): AuthState {
     const storedState = storage.get<AuthState>(STORAGE_KEY_STATE);
     
+    console.debug('[Auth] Loading state from storage:', storedState ? 'Found' : 'Not found');
+    
     if (storedState) {
+      console.debug('[Auth] Loaded session ID:', storedState.sessionId?.substring(0, 10) + '...');
       return storedState;
     }
 

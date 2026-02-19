@@ -33,23 +33,32 @@ export function FeatureList({ repository, onRefresh }: FeatureListProps) {
    * Fetch features for repository
    */
   const fetchFeatures = useCallback(async () => {
-    if (!repository) return;
+    if (!repository) {
+      console.debug('No repository selected, skipping fetch');
+      return;
+    }
     
     setIsLoading(true);
     setError(null);
     
     try {
       const [owner, repo] = repository.full_name.split('/');
+      const url = `/api/v1/repos/${owner}/${repo}/features`;
+      console.debug(`Fetching features from: ${url}`);
+      
       const response = await apiService.get<{
         features: Feature[];
         repository: string;
         total_count: number;
-      }>(`/api/v1/repos/${owner}/${repo}/features`);
+      }>(url);
       
+      console.debug(`Received ${response.features.length} features`, response);
       setFeatures(response.features);
     } catch (err: any) {
       console.error('Failed to fetch features:', err);
-      setError(err.response?.data?.error?.message || err.message || 'Failed to load features');
+      const errorMsg = err.response?.data?.detail || err.response?.data?.error?.message || err.message || 'Failed to load features';
+      console.error('Error details:', errorMsg);
+      setError(errorMsg);
     } finally {
       setIsLoading(false);
     }

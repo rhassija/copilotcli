@@ -52,9 +52,12 @@ class ApiService {
         
         if (sessionId) {
           config.headers['X-Session-ID'] = sessionId;
+          console.debug(`[API] Injected session ID: ${sessionId.substring(0, 10)}...`);
+        } else {
+          console.warn('[API] No session ID available - request may fail with 401');
         }
 
-        console.debug(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
+        console.debug(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
         
         return config;
       },
