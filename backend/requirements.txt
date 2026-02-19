@@ -1,0 +1,35 @@
+# Core FastAPI and server
+fastapi>=0.100
+uvicorn[standard]>=0.23
+
+# Data validation
+pydantic>=2.0
+pydantic-settings>=2.0
+
+# HTTP and async clients  
+aiohttp>=3.9
+requests>=2.31  # For synchronous GitHub API calls
+
+# GitHub integration
+PyGithub>=2.1
+
+# Environment config
+python-dotenv
+
+# Database and ORM (Phase 2+)
+SQLAlchemy>=2.0
+alembic>=1.12
+
+# Testing
+pytest>=7.4
+pytest-asyncio>=0.21
+pytest-cov>=4.1
+
+# Code quality
+black
+flake8
+mypy
+isort
+
+# Utilities
+python-multipart
