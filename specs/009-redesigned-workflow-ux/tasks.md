@@ -229,13 +229,13 @@
 
 #### Frontend for US1
 
-- [ ] T095 [P] [US1] Create repo selector component in `frontend/src/components/RepoSelector.tsx`
-- [ ] T096 [US1] Implement searchable repo list with pagination
-- [ ] T097 [P] [US1] Create feature/branch selector in `frontend/src/components/FeatureCreator.tsx`
-- [ ] T098 [US1] Implement branch listing UI
-- [ ] T099 [US1] Implement "Create New Feature" button + modal form
-- [ ] T100 [US1] Implement feature refresh (reload branches/features from GitHub)
-- [ ] T101 [US1] Create dashboard with repo/feature headers in `frontend/src/pages/dashboard.tsx`
+- [X] T095 [P] [US1] Create repo selector component in `frontend/src/components/RepoSelector.tsx`
+- [X] T096 [US1] Implement searchable repo list with pagination
+- [X] T097 [P] [US1] Create feature/branch selector in `frontend/src/components/FeatureCreator.tsx`
+- [X] T098 [US1] Implement branch listing UI
+- [X] T099 [US1] Implement "Create New Feature" button + modal form
+- [X] T100 [US1] Implement feature refresh (reload branches/features from GitHub)
+- [X] T101 [US1] Create dashboard with repo/feature headers in `frontend/src/pages/dashboard.tsx`
 
 #### Testing for US1
 
