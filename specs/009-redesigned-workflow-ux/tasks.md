@@ -132,10 +132,10 @@
 
 ### Backend Foundation: Error Handling & Logging
 
-- [ ] T050 [P] Create centralized error handler in `backend/src/utils/error_handlers.py`
-- [ ] T051 [P] Setup structured logging in `backend/src/utils/logging.py`
-- [ ] T052 Implement error response formatting (consistent with API contracts)
-- [ ] T053 Implement token masking in logs (never show full token)
+- [X] T050 [P] Create centralized error handler in `backend/src/utils/error_handlers.py`
+- [X] T051 [P] Setup structured logging in `backend/src/utils/logging.py`
+- [X] T052 Implement error response formatting (consistent with API contracts)
+- [X] T053 Implement token masking in logs (never show full token)
 
 ### Frontend Foundation: Auth Context & Token Management
 
