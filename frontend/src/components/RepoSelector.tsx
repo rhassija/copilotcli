@@ -57,9 +57,17 @@ export function RepoSelector({ onSelect, selectedRepo }: RepoSelectorProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [visibility, setVisibility] = useState<string>('all');
   const [sort, setSort] = useState('updated');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // Track if we're programmatically resetting page to prevent double-fetch
   const isResettingPage = useRef(false);
+  
+  /**
+   * Handle manual refresh
+   */
+  const handleRefresh = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
   
   /**
    * Reset to page 1 when filters change
@@ -114,7 +122,7 @@ export function RepoSelector({ onSelect, selectedRepo }: RepoSelectorProps) {
     };
     
     fetchRepositories();
-  }, [page, perPage, searchTerm, visibility, sort]);
+  }, [page, perPage, searchTerm, visibility, sort, refreshTrigger]);
   
   /**
    * Handle repository selection
@@ -148,7 +156,7 @@ export function RepoSelector({ onSelect, selectedRepo }: RepoSelectorProps) {
           📚 Select Repository
         </h2>
         <button
-          onClick={fetchRepositories}
+          onClick={handleRefresh}
           disabled={isLoading}
           className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md transition-colors disabled:opacity-50"
         >
