@@ -1104,12 +1104,11 @@ async def generate_plan(
         spec_content = None
         if request.include_context and feature.spec_path:
             try:
-                spec_data = await github_client.read_file(
+                spec_content, _ = await github_client.read_file(
                     repo_full_name=feature.repository_full_name,
-                    file_path=feature.spec_path,
+                    path=feature.spec_path,
                     branch=feature.branch_name
                 )
-                spec_content = spec_data["content"]
                 logger.info(f"Loaded spec context ({len(spec_content)} chars)")
             except GitHubAPIError:
                 logger.warning("Spec not found, generating plan without spec context")
@@ -1186,12 +1185,11 @@ async def generate_task(
             # Load spec
             if feature.spec_path:
                 try:
-                    spec_data = await github_client.read_file(
+                    spec_content, _ = await github_client.read_file(
                         repo_full_name=feature.repository_full_name,
-                        file_path=feature.spec_path,
+                        path=feature.spec_path,
                         branch=feature.branch_name
                     )
-                    spec_content = spec_data["content"]
                     logger.info(f"Loaded spec context ({len(spec_content)} chars)")
                 except GitHubAPIError:
                     logger.warning("Spec not found")
@@ -1199,12 +1197,11 @@ async def generate_task(
             # Load plan
             if feature.plan_path:
                 try:
-                    plan_data = await github_client.read_file(
+                    plan_content, _ = await github_client.read_file(
                         repo_full_name=feature.repository_full_name,
-                        file_path=feature.plan_path,
+                        path=feature.plan_path,
                         branch=feature.branch_name
                     )
-                    plan_content = plan_data["content"]
                     logger.info(f"Loaded plan context ({len(plan_content)} chars)")
                 except GitHubAPIError:
                     logger.warning("Plan not found")
