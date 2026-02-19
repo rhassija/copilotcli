@@ -383,15 +383,26 @@ class InMemoryStorage:
                     data = json.load(f)
                     for feature_id, feature_dict in data.items():
                         try:
+                            # Convert string datetime fields to datetime objects if needed
+                            if 'created_at' in feature_dict and isinstance(feature_dict['created_at'], str):
+                                feature_dict['created_at'] = feature_dict['created_at']
+                            if 'updated_at' in feature_dict and isinstance(feature_dict['updated_at'], str):
+                                feature_dict['updated_at'] = feature_dict['updated_at']
+                            
                             feature = Feature(**feature_dict)
                             self._features[feature_id] = feature
+                            print(f"[Storage] Loaded feature: {feature_id} | repo: {feature.repository_full_name} | branch: {feature.branch_name}")
                         except Exception as e:
-                            print(f"Warning: Failed to load feature {feature_id}: {e}")
-                    print(f"[Storage] Loaded {len(self._features)} features from disk")
+                            print(f"[Storage ERROR] Failed to load feature {feature_id}: {e}")
+                            import traceback
+                            traceback.print_exc()
+                    print(f"[Storage] Successfully loaded {len(self._features)} features from disk")
             else:
                 print("[Storage] No features file found - starting with empty features")
         except Exception as e:
-            print(f"[Storage] Error loading features from disk: {e}")
+            print(f"[Storage ERROR] Error loading features from disk: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _load_operations_from_disk(self) -> None:
         """Load operations from persistent JSON storage."""
