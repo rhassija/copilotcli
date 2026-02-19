@@ -86,7 +86,7 @@ export default function FeaturesPage() {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(f => 
-        f.feature_name.toLowerCase().includes(query) ||
+        f.title.toLowerCase().includes(query) ||
         f.branch_name.toLowerCase().includes(query) ||
         f.repository_full_name.toLowerCase().includes(query)
       );
@@ -113,7 +113,7 @@ export default function FeaturesPage() {
   }
 
   const handleFeatureClick = (feature: Feature) => {
-    router.push(`/editor/${feature.id}`);
+    router.push(`/editor/${feature.feature_id}`);
   };
 
   return (
@@ -204,14 +204,14 @@ export default function FeaturesPage() {
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredFeatures.map((feature) => (
                 <div
-                  key={feature.id}
+                  key={feature.feature_id}
                   className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
                   onClick={() => handleFeatureClick(feature)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                        {feature.feature_name}
+                        {feature.title || feature.branch_name}
                       </h3>
                       <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                         {feature.repository_full_name}

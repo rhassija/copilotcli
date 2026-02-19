@@ -1,5 +1,6 @@
 {
   "/editor/[featureId]/page": "app/editor/[featureId]/page.js",
+  "/features/page": "app/features/page.js",
   "/login/page": "app/login/page.js",
   "/dashboard/page": "app/dashboard/page.js",
   "/repositories/page": "app/repositories/page.js"
