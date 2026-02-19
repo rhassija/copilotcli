@@ -326,7 +326,12 @@ async def create_branch(
                 logger.info(f"Initializing documents for feature {feature_id} via Copilot CLI")
                 
                 # Get token for subprocess
-                token = auth_service.decrypt_token(session.encrypted_token)
+                token = auth_service.get_session_token(x_session_id)
+                if not token:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Failed to retrieve authentication token"
+                    )
                 
                 # Create copilot runner
                 runner = CopilotRunner(timeout_seconds=120)
