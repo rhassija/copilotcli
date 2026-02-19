@@ -185,13 +185,13 @@
 
 ### Frontend for US0
 
-- [ ] T075 [P] [US0] Create login page in `frontend/src/pages/login.tsx`
-- [ ] T076 [P] [US0] Create token input form with copy/paste support
-- [ ] T077 [US0] Implement "Verify" button that calls `POST /auth/verify`
-- [ ] T078 Implement success/error message display for auth attempts
-- [ ] T079 [P] [US0] Implement session persistence: store token in sessionStorage after verify
-- [ ] T080 [US0] Implement page redirect to dashboard on successful auth
-- [ ] T081 [US0] Implement re-auth flow when token expires (catch 401 errors)
+- [X] T075 [P] [US0] Create login page in `frontend/src/pages/login.tsx`
+- [X] T076 [P] [US0] Create token input form with copy/paste support
+- [X] T077 [US0] Implement "Verify" button that calls `POST /auth/verify`
+- [X] T078 Implement success/error message display for auth attempts
+- [X] T079 [P] [US0] Implement session persistence: store token in sessionStorage after verify
+- [X] T080 [US0] Implement page redirect to dashboard on successful auth
+- [X] T081 [US0] Implement re-auth flow when token expires (catch 401 errors)
 
 ### Testing for US0
 
