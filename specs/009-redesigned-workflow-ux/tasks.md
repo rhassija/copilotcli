@@ -35,9 +35,9 @@
 
 ### Python Virtual Environment Setup
 
-- [ ] T000 [P] Activate pre-existing `copilotcompanion` virtual environment: `source ./copilotcompanion/bin/activate` in all terminal sessions for backend work
-- [ ] T000a [P] Verify Python version in venv: `python --version` should output Python 3.13.x
-- [ ] T000b Verify pip is from correct environment: `which pip` should show `./copilotcompanion/bin/pip`
+- [x] T000 [P] Activate pre-existing `copilotcompanion` virtual environment: `source ./copilotcompanion/bin/activate` in all terminal sessions for backend work
+- [x] T000a [P] Verify Python version in venv: `python --version` should output Python 3.13.x
+- [x] T000b Verify pip is from correct environment: `which pip` should show `./copilotcompanion/bin/pip`
 
 **NOTE**: All subsequent backend tasks (T001 onwards) MUST be executed within the `copilotcompanion` virtual environment. This environment is used for:
   - Backend dependency installation and development
@@ -47,7 +47,7 @@
 
 ### Backend Project Initialization
 
-- [ ] T001 Initialize Python backend project structure: `backend/src/`, `backend/tests/`, `backend/requirements.txt` (execute in activated `copilotcompanion` environment)
+- [x] T001 Initialize Python backend project structure: `backend/src/`, `backend/tests/`, `backend/requirements.txt` (execute in activated `copilotcompanion` environment)
 - [ ] T002 [P] Configure FastAPI application entry point in `backend/src/main.py`
 - [ ] T003 [P] Setup Python virtual environment with pip dependencies (FastAPI, uvicorn, aiohttp, pydantic)
 - [ ] T004 [P] Configure CORS middleware in `backend/src/main.py` for frontend development

@@ -8,7 +8,18 @@
     },
     "chat.tools.terminal.autoApprove": {
         ".specify/scripts/bash/": true,
-        ".specify/scripts/powershell/": true
+        ".specify/scripts/powershell/": true,
+        "/^cd /Users/rajeshhassija/Documents/GitHub/copilotcli && cat << 'EOF'\n\n╔════════════════════════════════════════════════════════════════════════════╗\n║                    PHASE 1: SETUP & INFRASTRUCTURE                        ║\n║                                                                            ║\n║  T000-T000b: Python Virtual Environment Setup & Verification              ║\n╚════════════════════════════════════════════════════════════════════════════╝\n\nTASK: T000 - Activate pre-existing copilotcompanion environment\n\nEOF\nsource \\./copilotcompanion/bin/activate && echo \"✅ Successfully activated copilotcompanion environment\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^source /Users/rajeshhassija/Documents/GitHub/copilotcli/copilotcompanion/bin/activate && cd /Users/rajeshhassija/Documents/GitHub/copilotcli && python --version && which pip$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "mkdir": true,
+        "read": true,
+        "touch": true
     }
 }
 
