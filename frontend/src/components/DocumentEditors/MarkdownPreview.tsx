@@ -29,8 +29,7 @@ function renderMarkdown(markdown: string): string {
   html = html.replace(/>/g, '&gt;');
 
   // Code blocks
-  html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-    const language = lang || 'text';
+  html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (_match, _lang, code) => {
     return `<pre class="bg-gray-100 dark:bg-gray-900 p-3 rounded-md overflow-x-auto my-2"><code class="text-gray-800 dark:text-gray-200 text-sm">${code.trim()}</code></pre>`;
   });
 

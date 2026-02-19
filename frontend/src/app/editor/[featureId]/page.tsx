@@ -23,6 +23,8 @@ export interface DocumentContent {
   sha: string;
   last_modified: string;
   path: string;
+  repository: string;
+  branch: string;
 }
 
 export interface AllDocuments {

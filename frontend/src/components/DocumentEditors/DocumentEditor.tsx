@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { apiService } from '../../../services/api';
 import MarkdownPreview from './MarkdownPreview';
 
