@@ -51,17 +51,17 @@
 - [x] T002 [P] Configure FastAPI application entry point in `backend/src/main.py`
 - [x] T003 [P] Setup Python virtual environment with pip dependencies (FastAPI, uvicorn, aiohttp, pydantic)
 - [x] T004 [P] Configure CORS middleware in `backend/src/main.py` for frontend development
-- [ ] T005 Create Docker image for backend: `backend/Dockerfile`
-- [ ] T006 Setup environment configuration in `backend/.env.example` and `backend/src/utils/env_config.py`
+- [x] T005 Create Docker image for backend: `backend/Dockerfile`
+- [x] T006 Setup environment configuration in `backend/.env.example` and `backend/src/utils/env_config.py`
 
 ### Frontend Project Initialization
 
-- [ ] T007 Initialize Next.js React frontend: `frontend/` with pages, components, services structure
-- [ ] T008 [P] Configure TypeScript in `frontend/tsconfig.json` with strict mode enabled
-- [ ] T009 [P] Install frontend dependencies: React 18, Next.js 14, axios, TypeScript development tools
-- [ ] T010 [P] Setup Tailwind CSS in `frontend/tailwind.config.js` + base styles
-- [ ] T011 Create frontend environment template: `frontend/.env.example`
-- [ ] T012 Setup Next.js configuration in `frontend/next.config.js` (API routes, SSR settings)
+- [x] T007 Initialize Next.js React frontend: `frontend/` with pages, components, services structure
+- [x] T008 [P] Configure TypeScript in `frontend/tsconfig.json` with strict mode enabled
+- [x] T009 [P] Install frontend dependencies: React 18, Next.js 14, axios, TypeScript development tools
+- [x] T010 [P] Setup Tailwind CSS in `frontend/tailwind.config.js` + base styles
+- [x] T011 Create frontend environment template: `frontend/.env.example`
+- [x] T012 Setup Next.js configuration in `frontend/next.config.js` (API routes, SSR settings)
 
 ### Testing Infrastructure
 
