@@ -218,14 +218,14 @@
 
 #### Backend for US1
 
-- [ ] T087 [P] [US1] Create repo endpoints in `backend/src/api/repositories.py`: `GET /repos`
-- [ ] T088 [P] [US1] Implement repository listing with search/filter
-- [ ] T089 [US1] Implement repository caching (5 min TTL)
-- [ ] T090 [P] [US1] Create branch endpoints: `GET /repos/{owner}/{repo}/branches`
-- [ ] T091 [P] [US1] Create feature creation endpoint: `POST /repos/{owner}/{repo}/branches`
-- [ ] T092 [US1] Implement Copilot CLI invocation for branch creation + initial files
-- [ ] T093 [US1] Implement feature persistence (in-memory model)
-- [ ] T094 [US1] Create feature listing endpoint: `GET /features` (filtered by repo)
+- [X] T087 [P] [US1] Create repo endpoints in `backend/src/api/repositories.py`: `GET /repos`
+- [X] T088 [P] [US1] Implement repository listing with search/filter
+- [X] T089 [US1] Implement repository caching (5 min TTL)
+- [X] T090 [P] [US1] Create branch endpoints: `GET /repos/{owner}/{repo}/branches`
+- [X] T091 [P] [US1] Create feature creation endpoint: `POST /repos/{owner}/{repo}/branches`
+- [X] T092 [US1] Implement Copilot CLI invocation for branch creation + initial files
+- [X] T093 [US1] Implement feature persistence (in-memory model)
+- [X] T094 [US1] Create feature listing endpoint: `GET /features` (filtered by repo)
 
 #### Frontend for US1
 
