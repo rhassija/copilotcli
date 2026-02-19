@@ -250,8 +250,9 @@ class GitHubClient:
             user = self._github.get_user()
             
             # Get repositories
+            # Note: PyGithub uses 'type' parameter, not 'visibility'
             github_repos = user.get_repos(
-                visibility=visibility or "all",
+                type=visibility or "all",
                 sort=sort
             )
             
@@ -304,14 +305,14 @@ class GitHubClient:
             forks_count=github_repo.forks_count,
             open_issues_count=github_repo.open_issues_count,
             has_issues=github_repo.has_issues,
-            has_projects=github_repo.has_projects,
+            has_projects=getattr(github_repo, "has_projects", False),
             has_wiki=github_repo.has_wiki,
-            has_pages=github_repo.has_pages,
-            has_downloads=github_repo.has_downloads,
+            has_pages=getattr(github_repo, "has_pages", False),
+            has_downloads=getattr(github_repo, "has_downloads", False),
             archived=github_repo.archived,
-            disabled=github_repo.disabled,
-            visibility=github_repo.visibility if hasattr(github_repo, "visibility") else ("private" if github_repo.private else "public"),
-            permissions=github_repo.permissions,
+            disabled=getattr(github_repo, "disabled", False),
+            visibility=getattr(github_repo, "visibility", "private" if github_repo.private else "public"),
+            permissions=getattr(github_repo, "permissions", None),
             language=github_repo.language,
             topics=github_repo.get_topics() if hasattr(github_repo, "get_topics") else []
         )
