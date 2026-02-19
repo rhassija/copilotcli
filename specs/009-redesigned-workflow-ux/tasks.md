@@ -139,31 +139,31 @@
 
 ### Frontend Foundation: Auth Context & Token Management
 
-- [ ] T054 [P] Create auth context in `frontend/src/services/auth.ts`
-- [ ] T055 [P] Implement sessionStorage token storage wrapper in `frontend/src/utils/storage.ts`
-- [ ] T056 Implement auth state hook: `useAuth()` in `frontend/src/hooks/useAuth.ts`
-- [ ] T057 Implement HTTP client wrapper with automatic token injection: `frontend/src/services/api.ts`
+- [X] T054 [P] Create auth context in `frontend/src/services/auth.ts`
+- [X] T055 [P] Implement sessionStorage token storage wrapper in `frontend/src/utils/storage.ts`
+- [X] T056 Implement auth state hook: `useAuth()` in `frontend/src/hooks/useAuth.ts`
+- [X] T057 Implement HTTP client wrapper with automatic token injection: `frontend/src/services/api.ts`
 
 ### Frontend Foundation: API Service & Data Fetching
 
-- [ ] T058 [P] Create API service in `frontend/src/services/api.ts` with axios interceptors
-- [ ] T059 [P] Implement error handling in API service (detect 401, prompt re-auth)
-- [ ] T060 Implement automatic retry logic with exponential backoff
-- [ ] T061 Create custom React hooks: `useApi()` for data fetching in `frontend/src/hooks/useApi.ts`
+- [X] T058 [P] Create API service in `frontend/src/services/api.ts` with axios interceptors
+- [X] T059 [P] Implement error handling in API service (detect 401, prompt re-auth)
+- [X] T060 Implement automatic retry logic with exponential backoff
+- [X] T061 Create custom React hooks: `useApi()` for data fetching in `frontend/src/hooks/useApi.ts`
 
 ### Frontend Foundation: WebSocket Client
 
-- [ ] T062 [P] Create WebSocket service in `frontend/src/services/websocket.ts`
-- [ ] T063 Implement WebSocket connection wrapper with auto-reconnect
-- [ ] T064 Implement message queue and replay on reconnect
-- [ ] T065 Implement message type routing (thinking, execution, error, complete)
+- [X] T062 [P] Create WebSocket service in `frontend/src/services/websocket.ts`
+- [X] T063 Implement WebSocket connection wrapper with auto-reconnect
+- [X] T064 Implement message queue and replay on reconnect
+- [X] T065 Implement message type routing (thinking, execution, error, complete)
 
 ### Frontend Foundation: Core Components
 
-- [ ] T066 [P] Create AuthGuard wrapper component in `frontend/src/components/AuthGuard.tsx`
-- [ ] T067 [P] Create Layout component with header/sidebar in `frontend/src/components/Layout.tsx`
-- [ ] T068 [P] Create Loading spinner component in `frontend/src/components/Loading.tsx`
-- [ ] T069 [P] Create Error display component in `frontend/src/components/ErrorBoundary.tsx`
+- [X] T066 [P] Create AuthGuard wrapper component in `frontend/src/components/AuthGuard.tsx`
+- [X] T067 [P] Create Layout component with header/sidebar in `frontend/src/components/Layout.tsx`
+- [X] T068 [P] Create Loading spinner component in `frontend/src/components/Loading.tsx`
+- [X] T069 [P] Create Error display component in `frontend/src/components/ErrorBoundary.tsx`
 
 **Checkpoint**: Foundation complete - user story implementation can now begin in parallel
 
