@@ -16,8 +16,12 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 import logging
 
+from src.api import auth, websocket
+from src.utils.error_handlers import register_exception_handlers
+from src.utils.logging import setup_logging
+
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+setup_logging(os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI application
@@ -49,6 +53,13 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=600,  # Cache preflight for 10 minutes
 )
+
+# Register exception handlers
+register_exception_handlers(app)
+
+# Register API routers
+app.include_router(auth.router)
+app.include_router(websocket.router)
 
 # Health check endpoint
 @app.get("/health")

@@ -177,11 +177,11 @@
 
 ### Implementation for US0
 
-- [ ] T070 [P] [US0] Create auth validation endpoint: `POST /api/v1/auth/verify` in `backend/src/api/auth.py`
-- [ ] T071 [US0] Implement endpoint to validate token via GitHub `/user` API endpoint
-- [ ] T072 Implement token response with user info (login, id, avatar_url, email, scopes)
-- [ ] T073 [P] [US0] Create logout endpoint: `POST /api/v1/auth/logout` in `backend/src/api/auth.py`
-- [ ] T074 [US0] Implement session cleanup on logout
+- [X] T070 [P] [US0] Create auth validation endpoint: `POST /api/v1/auth/verify` in `backend/src/api/auth.py`
+- [X] T071 [US0] Implement endpoint to validate token via GitHub `/user` API endpoint
+- [X] T072 Implement token response with user info (login, id, avatar_url, email, scopes)
+- [X] T073 [P] [US0] Create logout endpoint: `POST /api/v1/auth/logout` in `backend/src/api/auth.py`
+- [X] T074 [US0] Implement session cleanup on logout
 
 ### Frontend for US0
 
