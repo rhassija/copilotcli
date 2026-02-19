@@ -48,9 +48,9 @@
 ### Backend Project Initialization
 
 - [x] T001 Initialize Python backend project structure: `backend/src/`, `backend/tests/`, `backend/requirements.txt` (execute in activated `copilotcompanion` environment)
-- [ ] T002 [P] Configure FastAPI application entry point in `backend/src/main.py`
-- [ ] T003 [P] Setup Python virtual environment with pip dependencies (FastAPI, uvicorn, aiohttp, pydantic)
-- [ ] T004 [P] Configure CORS middleware in `backend/src/main.py` for frontend development
+- [x] T002 [P] Configure FastAPI application entry point in `backend/src/main.py`
+- [x] T003 [P] Setup Python virtual environment with pip dependencies (FastAPI, uvicorn, aiohttp, pydantic)
+- [x] T004 [P] Configure CORS middleware in `backend/src/main.py` for frontend development
 - [ ] T005 Create Docker image for backend: `backend/Dockerfile`
 - [ ] T006 Setup environment configuration in `backend/.env.example` and `backend/src/utils/env_config.py`
 

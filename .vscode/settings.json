@@ -19,7 +19,12 @@
         },
         "mkdir": true,
         "read": true,
-        "touch": true
+        "touch": true,
+        "pip": true,
+        "/^source /Users/rajeshhassija/Documents/GitHub/copilotcli/copilotcompanion/bin/activate && cd /Users/rajeshhassija/Documents/GitHub/copilotcli/backend && pip install -q -r requirements\\.txt 2>&1 \\| tail -20 && echo \"✅ Installation complete\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }
 
