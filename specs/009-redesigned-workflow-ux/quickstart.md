@@ -24,9 +24,26 @@
 
 ### Required Software
 
-- **Python 3.11+**: Backend runtime
+- **Python 3.13**: Backend runtime (via pre-existing `copilotcompanion` virtual environment)
 - **Node.js 18+**: Frontend runtime + npm/yarn
 - **Git**: Version control
+
+### Python Virtual Environment (Pre-Created)
+
+The `copilotcompanion` Python 3.13 virtual environment is pre-created at `./copilotcompanion/` and must be used for all backend work:
+
+```bash
+# Activate the environment
+source ./copilotcompanion/bin/activate
+
+# Verify activation (should show Python 3.13.x)
+python --version
+
+# Verify correct pip
+which pip  # Should show ./copilotcompanion/bin/pip
+```
+
+**All backend tasks (setup, development, testing) MUST use this environment.**
 
 ### Required Accounts & Tokens
 
@@ -59,11 +76,13 @@ cd copilot-ui
 ```bash
 cd backend
 
-# Create Python virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Activate pre-existing copilotcompanion environment (from repo root)
+source ../copilotcompanion/bin/activate
 
-# Install dependencies
+# Verify correct environment
+python --version  # Should show Python 3.13.x
+
+# Install dependencies (or update if already installed)
 pip install -r requirements.txt
 
 # Create .env file from template
@@ -76,6 +95,8 @@ cp .env.example .env
 # Verify setup
 python -c "import fastapi; print(f'FastAPI {fastapi.__version__} installed')"
 ```
+
+**IMPORTANT**: Always use the `copilotcompanion` environment for all backend work. Never create a new venv.
 
 **Backend Directory Structure**:
 ```

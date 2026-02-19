@@ -160,6 +160,16 @@ The tab interface is designed to support constitution.md as a future child panel
 - What occurs if GitHub token is expired or revoked during an active session?
 - How does the system handle API rate limits when fetching repositories or executing Copilot CLI commands?
 
+## Development Environment
+
+**Python Virtual Environment**: `copilotcompanion` (Python 3.13)
+- Location: `./copilotcompanion/` (pre-created in POC phase)
+- Activation: `source ./copilotcompanion/bin/activate`
+- All backend Python dependencies must be installed in this environment
+- This environment is used for Copilot CLI subprocess execution with injected GitHub token
+
+---
+
 ## Architecture & Integration *(mandatory)*
 
 ### Copilot CLI Integration Strategy

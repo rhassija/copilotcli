@@ -11,7 +11,8 @@ Redesigned Copilot CLI with modern web UI supporting multi-step workflow (spec �
 
 ## Technical Context
 
-**Language/Version**: Python 3.11+ (Copilot CLI backend subprocess) + TypeScript/JavaScript (React/Next.js frontend)  
+**Language/Version**: Python 3.13 (Copilot CLI backend subprocess via `copilotcompanion` venv) + TypeScript/JavaScript (React/Next.js frontend)
+**Python Environment**: `copilotcompanion` (pre-created, located at `./copilotcompanion/`)  
 **Primary Dependencies**: 
 - Backend: FastAPI (WebSocket + GitHub API integration) or similar async-capable HTTP framework
 - Frontend: React 18+ with Next.js (recommended) for SSR, API integration, and modern UX
@@ -111,6 +112,21 @@ specs/009-redesigned-workflow-ux/
 │   └── requirements.md      # Quality validation checklist
 └── tasks.md                 # Phase 2 output (/speckit.tasks command - NOT created here)
 ```
+
+### Python Virtual Environment (Pre-Existing)
+
+**IMPORTANT**: The `copilotcompanion` Python 3.13 virtual environment is pre-created at `./copilotcompanion/` and must be used for all backend development and execution.
+
+```bash
+# Activate for development
+source ./copilotcompanion/bin/activate
+
+# Verify correct environment
+python --version  # Should show Python 3.13.x
+which pip         # Should show ./copilotcompanion/bin/pip
+```
+
+**All backend tasks (setup, development, testing, subprocess execution) MUST be run within this environment.**
 
 ### Source Code (repository root)
 
