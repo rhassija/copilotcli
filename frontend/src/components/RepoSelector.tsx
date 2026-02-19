@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { apiService } from '../services/api';
 
 export interface Repository {
@@ -58,50 +58,63 @@ export function RepoSelector({ onSelect, selectedRepo }: RepoSelectorProps) {
   const [visibility, setVisibility] = useState<string>('all');
   const [sort, setSort] = useState('updated');
   
+  // Track if we're programmatically resetting page to prevent double-fetch
+  const isResettingPage = useRef(false);
+  
+  /**
+   * Reset to page 1 when filters change
+   */
+  useEffect(() => {
+    if (page !== 1) {
+      isResettingPage.current = true;
+      setPage(1);
+    }
+  }, [searchTerm, visibility, sort]); // Don't include 'page' in deps
+  
   /**
    * Fetch repositories from API
    */
-  const fetchRepositories = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await apiService.get<{
-        repositories: Repository[];
-        total_count: number;
-        page: number;
-        per_page: number;
-        has_next: boolean;
-      }>('/api/v1/repos', {
-        params: {
-          visibility: visibility === 'all' ? undefined : visibility,
-          sort,
-          search: searchTerm || undefined,
-          page,
-          per_page: perPage,
-          use_cache: true,
-        },
-      });
-      
-      setRepos(response.repositories);
-      setHasNext(response.has_next);
-    } catch (err: any) {
-      console.error('Failed to fetch repositories:', err);
-      setError(err.response?.data?.error?.message || err.message || 'Failed to load repositories');
-    } finally {
-      setIsLoading(false);
+  useEffect(() => {
+    // Skip fetch if we just reset the page (will fetch on next render with page=1)
+    if (isResettingPage.current) {
+      isResettingPage.current = false;
+      return;
     }
-  }, [page, perPage, searchTerm, visibility, sort]);
-  
-  // Fetch on mount and when filters change
-  useEffect(() => {
+    
+    const fetchRepositories = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const response = await apiService.get<{
+          repositories: Repository[];
+          total_count: number;
+          page: number;
+          per_page: number;
+          has_next: boolean;
+        }>('/api/v1/repos', {
+          params: {
+            visibility: visibility === 'all' ? undefined : visibility,
+            sort,
+            search: searchTerm || undefined,
+            page,
+            per_page: perPage,
+            use_cache: true,
+          },
+        });
+        
+        setRepos(response.repositories);
+        setHasNext(response.has_next);
+      } catch (err: any) {
+        console.error('Failed to fetch repositories:', err);
+        setError(err.response?.data?.error?.message || err.message || 'Failed to load repositories');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
     fetchRepositories();
-  }, [fetchRepositories]);
-  
-  // Reset to page 1 when search/filter changes
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm, visibility, sort]);
+  }, [page, perPage, searchTerm, visibility, sort]);
   
   /**
    * Handle repository selection
