@@ -96,12 +96,12 @@
 
 ### Backend Foundation: GitHub API Client
 
-- [ ] T026 [P] Implement GitHub API client base in `backend/src/services/github_client.py`
-- [ ] T027 Implement GitHub auth validation method: `validate_token()` (uses GitHub /user endpoint)
-- [ ] T028 Implement repository listing method: `get_repositories()` with caching
-- [ ] T029 [P] Implement branch operations: `get_branches()`, `create_branch()`
-- [ ] T030 [P] Implement file operations: `read_file()`, `write_file()`, `get_file_sha()`
-- [ ] T031 Implement rate limiting and retry logic in GitHub client (exponential backoff, 429 handling)
+- [X] T026 [P] Implement GitHub API client base in `backend/src/services/github_client.py`
+- [X] T027 Implement GitHub auth validation method: `validate_token()` (uses GitHub /user endpoint)
+- [X] T028 Implement repository listing method: `get_repositories()` with caching
+- [X] T029 [P] Implement branch operations: `get_branches()`, `create_branch()`
+- [X] T030 [P] Implement file operations: `read_file()`, `write_file()`, `get_file_sha()`
+- [X] T031 Implement rate limiting and retry logic in GitHub client (exponential backoff, 429 handling)
 
 ### Backend Foundation: Authentication & Session Management
 
