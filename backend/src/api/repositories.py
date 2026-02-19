@@ -413,7 +413,7 @@ async def list_features(
     owner: str,
     repo: str,
     status_filter: Optional[str] = Query(None, description="Filter by feature status"),
-    github_client: GitHubClient = Depends(get_github_client)
+    x_session_id: Optional[str] = Header(None, description="Session ID")
 ):
     """
     List features for a repository.
@@ -422,18 +422,23 @@ async def list_features(
     - Returns features filtered by repository
     - Optionally filters by status
     - Returns feature metadata
+    - NOTE: Session ID is optional for MVP simplicity
     
     Args:
         owner: Repository owner
         repo: Repository name
         status_filter: Optional status filter (active, in_progress, etc.)
-        github_client: Authenticated GitHub client (for auth validation)
+        x_session_id: Optional session ID (for auth validation in future)
     
     Returns:
         FeatureListResponse with features
     """
     try:
         repo_full_name = f"{owner}/{repo}"
+        
+        # Log the request for debugging
+        session_info = f"Session: {x_session_id[:16]}..." if x_session_id else "No session"
+        logger.info(f"LIST_FEATURES: {repo_full_name} | {session_info}")
         
         # Get ALL features to debug
         all_features = storage.list_features()
@@ -574,4 +579,43 @@ async def get_storage_status():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error getting storage status: {str(e)}"
         )
+
+
+# ========================================================================
+# Debug Endpoint: Check features without auth (for troubleshooting)
+# ========================================================================
+
+@router.get("/debug/features-no-auth", response_model=FeatureListResponse, status_code=status.HTTP_200_OK)
+async def debug_list_features_no_auth(
+    owner: str = Query(..., description="Repository owner"),
+    repo: str = Query(..., description="Repository name")
+):
+    """
+    DEBUG ENDPOINT: List features WITHOUT requiring authentication.
+    
+    This is only for troubleshooting and should be removed in production.
+    
+    Returns:
+        FeatureListResponse with features
+    """
+    try:
+        repo_full_name = f"{owner}/{repo}"
+        
+        # Get features directly from storage
+        features = storage.list_features(repository_full_name=repo_full_name)
+        logger.info(f"DEBUG (NO-AUTH): Found {len(features)} features for {repo_full_name}")
+        
+        return FeatureListResponse(
+            features=features,
+            repository=repo_full_name,
+            total_count=len(features)
+        )
+        
+    except Exception as e:
+        logger.exception(f"Unexpected error in debug features endpoint: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list features: {str(e)}"
+        )
+
 
