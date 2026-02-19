@@ -57,7 +57,7 @@ export function useAuth(): UseAuthReturn {
         session_id: string;
         user: User;
         token_prefix: string;
-      }>('/auth/login', { token });
+      }>('/api/v1/auth/verify', { token });
 
       // Update auth state
       authService.setAuthenticated(
@@ -89,7 +89,7 @@ export function useAuth(): UseAuthReturn {
       
       if (sessionId) {
         // Call backend logout endpoint
-        await apiService.post('/auth/logout', { session_id: sessionId });
+        await apiService.post('/api/v1/auth/logout', { session_id: sessionId });
       }
 
       // Clear local auth state
@@ -123,7 +123,7 @@ export function useAuth(): UseAuthReturn {
       const response = await apiService.get<{
         user: User;
         session_valid: boolean;
-      }>('/auth/verify');
+      }>('/api/v1/auth/verify');
 
       if (response.session_valid) {
         // Update user information
