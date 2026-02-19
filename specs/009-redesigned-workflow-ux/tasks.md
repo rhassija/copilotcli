@@ -105,12 +105,12 @@
 
 ### Backend Foundation: Authentication & Session Management
 
-- [ ] T032 Implement auth service in `backend/src/services/auth_service.py`
-- [ ] T033 Implement `verify_token()` method with GitHub API validation
-- [ ] T034 Implement token storage (sessionStorage equivalent on backend)
-- [ ] T035 Implement session persistence across API calls (session_id tracking)
-- [ ] T036 Implement token expiration detection (catch 401 errors)
-- [ ] T037 Implement logout/session cleanup
+- [X] T032 Implement auth service in `backend/src/services/auth_service.py`
+- [X] T033 Implement `verify_token()` method with GitHub API validation
+- [X] T034 Implement token storage (sessionStorage equivalent on backend)
+- [X] T035 Implement session persistence across API calls (session_id tracking)
+- [X] T036 Implement token expiration detection (catch 401 errors)
+- [X] T037 Implement logout/session cleanup
 
 ### Backend Foundation: Copilot CLI Subprocess Runner
 
