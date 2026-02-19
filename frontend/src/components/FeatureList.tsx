@@ -13,6 +13,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiService } from '../services/api';
 import type { Feature } from './FeatureCreator';
 import type { Repository } from './RepoSelector';
@@ -23,6 +24,7 @@ export interface FeatureListProps {
 }
 
 export function FeatureList({ repository, onRefresh }: FeatureListProps) {
+  const router = useRouter();
   const [features, setFeatures] = useState<Feature[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +66,13 @@ export function FeatureList({ repository, onRefresh }: FeatureListProps) {
   const handleRefresh = () => {
     fetchFeatures();
     onRefresh?.();
+  };
+  
+  /**
+   * Navigate to document editor
+   */
+  const handleEditDocuments = (feature: Feature) => {
+    router.push(`/editor/${feature.feature_id}`);
   };
   
   /**
@@ -191,6 +200,14 @@ export function FeatureList({ repository, onRefresh }: FeatureListProps) {
                     Created {formatDate(feature.created_at)} • Base: {feature.base_branch}
                   </p>
                 </div>
+                
+                {/* Edit Button */}
+                <button
+                  onClick={() => handleEditDocuments(feature)}
+                  className="ml-4 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors whitespace-nowrap"
+                >
+                  📝 Edit
+                </button>
               </div>
             </div>
           ))}
