@@ -13,7 +13,7 @@
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import type { Repository } from './RepoSelector';
 
@@ -57,7 +57,6 @@ export function FeatureCreator({ repository, isOpen, onClose, onSuccess }: Featu
   const [featureTitle, setFeatureTitle] = useState('');
   const [branchName, setBranchName] = useState('');
   const [baseBranch, setBaseBranch] = useState('main');
-  const [initializeDocuments, setInitializeDocuments] = useState(true);
   
   // UI state
   const [isCreating, setIsCreating] = useState(false);
@@ -129,14 +128,9 @@ export function FeatureCreator({ repository, isOpen, onClose, onSuccess }: Featu
       return;
     }
     
-    if (!branchName.trim()) {
-      setError('Branch name is required');
-      return;
-    }
-    
     setIsCreating(true);
     setError(null);
-    setProgress('Creating branch...');
+    setProgress('Creating feature branch with Speckit...');
     
     try {
       const [owner, repo] = repository.full_name.split('/');
@@ -150,17 +144,10 @@ export function FeatureCreator({ repository, isOpen, onClose, onSuccess }: Featu
         plan_path: string | null;
         task_path: string | null;
       }>(`/api/v1/repos/${owner}/${repo}/branches`, {
-        branch_name: branchName,
+        branch_name: branchName || null, // Auto-generate if empty
         from_branch: baseBranch,
         feature_title: featureTitle,
-        initialize_documents: initializeDocuments,
       });
-      
-      if (initializeDocuments) {
-        setProgress('Initializing documents via Copilot CLI...');
-        // Wait a bit for visual feedback
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
       
       setProgress('Feature created successfully!');
       
@@ -168,7 +155,7 @@ export function FeatureCreator({ repository, isOpen, onClose, onSuccess }: Featu
       const feature: Feature = {
         feature_id: response.feature_id,
         repository_full_name: repository.full_name,
-        branch_name: branchName,
+        branch_name: response.branch.name,
         base_branch: baseBranch,
         title: featureTitle,
         status: 'active',
@@ -190,7 +177,7 @@ export function FeatureCreator({ repository, isOpen, onClose, onSuccess }: Featu
       
     } catch (err: any) {
       console.error('Failed to create feature:', err);
-      setError(err.response?.data?.error?.message || err.message || 'Failed to create feature');
+      setError(err.response?.data?.detail || err.message || 'Failed to create feature');
     } finally {
       setIsCreating(false);
     }
@@ -204,7 +191,6 @@ export function FeatureCreator({ repository, isOpen, onClose, onSuccess }: Featu
       setFeatureTitle('');
       setBranchName('');
       setBaseBranch('main');
-      setInitializeDocuments(true);
       setError(null);
       setProgress('');
       onClose();
@@ -255,25 +241,27 @@ export function FeatureCreator({ repository, isOpen, onClose, onSuccess }: Featu
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
               required
             />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              💡 Natural language requirements can be added on the Spec page after feature creation
+            </p>
           </div>
           
           {/* Branch Name */}
           <div>
             <label htmlFor="branchName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Branch Name <span className="text-red-500">*</span>
+              Branch Name {!branchName && <span className="text-gray-400">(auto-generated)</span>}
             </label>
             <input
               id="branchName"
               type="text"
               value={branchName}
               onChange={(e) => setBranchName(e.target.value)}
-              placeholder="e.g., feature/010-realtime-collab"
+              placeholder="e.g., feature/010-realtime-collab (leave empty to auto-generate)"
               disabled={isCreating}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-              required
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Auto-generated from title. Use lowercase with hyphens.
+              Leave empty to auto-generate from title via Speckit
             </p>
           </div>
           
@@ -302,24 +290,6 @@ export function FeatureCreator({ repository, isOpen, onClose, onSuccess }: Featu
                 ))}
               </select>
             )}
-          </div>
-          
-          {/* Initialize Documents */}
-          <div className="flex items-start gap-3">
-            <input
-              id="initDocs"
-              type="checkbox"
-              checked={initializeDocuments}
-              onChange={(e) => setInitializeDocuments(e.target.checked)}
-              disabled={isCreating}
-              className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
-            />
-            <label htmlFor="initDocs" className="text-sm text-gray-700 dark:text-gray-300">
-              <span className="font-medium">Initialize documents (spec/plan/tasks)</span>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Automatically create initial specification, plan, and task documents using Copilot CLI
-              </p>
-            </label>
           </div>
           
           {/* Error Message */}
@@ -351,7 +321,7 @@ export function FeatureCreator({ repository, isOpen, onClose, onSuccess }: Featu
             </button>
             <button
               type="submit"
-              disabled={isCreating || !featureTitle.trim() || !branchName.trim()}
+              disabled={isCreating || !featureTitle.trim()}
               className="px-6 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isCreating ? (
@@ -361,7 +331,7 @@ export function FeatureCreator({ repository, isOpen, onClose, onSuccess }: Featu
                 </>
               ) : (
                 <>
-                  Create Feature →
+                  🚀 Create Feature Branch
                 </>
               )}
             </button>

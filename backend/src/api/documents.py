@@ -18,6 +18,7 @@ from src.models.github import Feature
 from src.services.github_client import GitHubClient, GitHubAPIError
 from src.services.auth_service import auth_service
 from src.services.storage import storage
+from src.services.document_generator import DocumentGenerator
 from src.utils.error_handlers import create_error_response
 
 router = APIRouter(prefix="/api/v1/features", tags=["documents"])
@@ -979,3 +980,264 @@ async def get_all_documents(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch documents: {str(e)}"
         )
+
+
+# ========================================================================
+# Document Generation Endpoints (Copilot CLI Integration)
+# ========================================================================
+
+class GenerateDocumentRequest(BaseModel):
+    """Request to generate document with Copilot CLI."""
+    requirement_description: str = Field(..., description="Natural language feature requirement", min_length=10)
+    enable_copilot: bool = Field(default=True, description="Use Copilot CLI enrichment")
+    copilot_model: Optional[str] = Field(None, description="Copilot model name (e.g., gpt-4)")
+    include_context: bool = Field(default=True, description="Include existing documents as context")
+
+
+class GenerateDocumentResponse(BaseModel):
+    """Response from document generation."""
+    content: str = Field(..., description="Generated document content")
+    used_copilot: bool = Field(..., description="Whether Copilot CLI was used")
+    model_used: Optional[str] = Field(None, description="Copilot model used")
+    message: str = Field(default="Document generated successfully")
+
+
+@router.post("/{feature_id}/generate-spec", response_model=GenerateDocumentResponse, status_code=status.HTTP_200_OK)
+async def generate_spec(
+    feature_id: str,
+    request: GenerateDocumentRequest,
+    x_session_id: str = Header(..., description="Session ID"),
+    github_client: GitHubClient = Depends(get_github_client)
+):
+    """
+    Generate specification document with Copilot CLI enrichment.
+    
+    Workflow:
+    1. Retrieve feature metadata
+    2. Use DocumentGenerator with Copilot CLI
+    3. Return generated content (user must save manually)
+    
+    Args:
+        feature_id: Feature ID
+        request: Generation request with requirement description
+        x_session_id: Session ID
+        github_client: Authenticated GitHub client
+    
+    Returns:
+        GenerateDocumentResponse with generated spec content
+    """
+    try:
+        # Get feature from storage
+        feature = storage.get_feature(feature_id)
+        if not feature:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Feature {feature_id} not found"
+            )
+        
+        logger.info(f"Generating spec for feature {feature_id} with Copilot: {request.enable_copilot}")
+        
+        # Create document generator
+        doc_gen = DocumentGenerator(
+            enable_copilot=request.enable_copilot,
+            model_name=request.copilot_model
+        )
+        
+        # Generate spec
+        spec_content = doc_gen.generate_spec(
+            requirement=request.requirement_description,
+            feature_title=feature.title,
+            branch_name=feature.branch_name,
+            repository_name=feature.repository_full_name
+        )
+        
+        return GenerateDocumentResponse(
+            content=spec_content,
+            used_copilot=request.enable_copilot and doc_gen.copilot_available,
+            model_used=request.copilot_model if request.enable_copilot else None,
+            message="Spec generated successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to generate spec: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate spec: {str(e)}"
+        )
+
+
+@router.post("/{feature_id}/generate-plan", response_model=GenerateDocumentResponse, status_code=status.HTTP_200_OK)
+async def generate_plan(
+    feature_id: str,
+    request: GenerateDocumentRequest,
+    x_session_id: str = Header(..., description="Session ID"),
+    github_client: GitHubClient = Depends(get_github_client)
+):
+    """
+    Generate implementation plan with Copilot CLI enrichment.
+    
+    Optionally includes spec content as context for better plan generation.
+    
+    Args:
+        feature_id: Feature ID
+        request: Generation request
+        x_session_id: Session ID
+        github_client: Authenticated GitHub client
+    
+    Returns:
+        GenerateDocumentResponse with generated plan content
+    """
+    try:
+        # Get feature from storage
+        feature = storage.get_feature(feature_id)
+        if not feature:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Feature {feature_id} not found"
+            )
+        
+        logger.info(f"Generating plan for feature {feature_id} with Copilot: {request.enable_copilot}")
+        
+        # Load spec for context (if requested)
+        spec_content = None
+        if request.include_context and feature.spec_path:
+            try:
+                spec_data = await github_client.read_file(
+                    repo_full_name=feature.repository_full_name,
+                    file_path=feature.spec_path,
+                    branch=feature.branch_name
+                )
+                spec_content = spec_data["content"]
+                logger.info(f"Loaded spec context ({len(spec_content)} chars)")
+            except GitHubAPIError:
+                logger.warning("Spec not found, generating plan without spec context")
+        
+        # Create document generator
+        doc_gen = DocumentGenerator(
+            enable_copilot=request.enable_copilot,
+            model_name=request.copilot_model
+        )
+        
+        # Generate plan
+        plan_content = doc_gen.generate_plan(
+            requirement=request.requirement_description,
+            feature_title=feature.title,
+            branch_name=feature.branch_name,
+            repository_name=feature.repository_full_name,
+            spec_content=spec_content
+        )
+        
+        return GenerateDocumentResponse(
+            content=plan_content,
+            used_copilot=request.enable_copilot and doc_gen.copilot_available,
+            model_used=request.copilot_model if request.enable_copilot else None,
+            message="Plan generated successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to generate plan: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate plan: {str(e)}"
+        )
+
+
+@router.post("/{feature_id}/generate-task", response_model=GenerateDocumentResponse, status_code=status.HTTP_200_OK)
+async def generate_task(
+    feature_id: str,
+    request: GenerateDocumentRequest,
+    x_session_id: str = Header(..., description="Session ID"),
+    github_client: GitHubClient = Depends(get_github_client)
+):
+    """
+    Generate task breakdown with Copilot CLI enrichment.
+    
+    Optionally includes spec and plan content as context for better task generation.
+    
+    Args:
+        feature_id: Feature ID
+        request: Generation request
+        x_session_id: Session ID
+        github_client: Authenticated GitHub client
+    
+    Returns:
+        GenerateDocumentResponse with generated tasks content
+    """
+    try:
+        # Get feature from storage
+        feature = storage.get_feature(feature_id)
+        if not feature:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Feature {feature_id} not found"
+            )
+        
+        logger.info(f"Generating tasks for feature {feature_id} with Copilot: {request.enable_copilot}")
+        
+        # Load spec and plan for context (if requested)
+        spec_content = None
+        plan_content = None
+        
+        if request.include_context:
+            # Load spec
+            if feature.spec_path:
+                try:
+                    spec_data = await github_client.read_file(
+                        repo_full_name=feature.repository_full_name,
+                        file_path=feature.spec_path,
+                        branch=feature.branch_name
+                    )
+                    spec_content = spec_data["content"]
+                    logger.info(f"Loaded spec context ({len(spec_content)} chars)")
+                except GitHubAPIError:
+                    logger.warning("Spec not found")
+            
+            # Load plan
+            if feature.plan_path:
+                try:
+                    plan_data = await github_client.read_file(
+                        repo_full_name=feature.repository_full_name,
+                        file_path=feature.plan_path,
+                        branch=feature.branch_name
+                    )
+                    plan_content = plan_data["content"]
+                    logger.info(f"Loaded plan context ({len(plan_content)} chars)")
+                except GitHubAPIError:
+                    logger.warning("Plan not found")
+        
+        # Create document generator
+        doc_gen = DocumentGenerator(
+            enable_copilot=request.enable_copilot,
+            model_name=request.copilot_model
+        )
+        
+        # Generate tasks
+        task_content = doc_gen.generate_tasks(
+            requirement=request.requirement_description,
+            feature_title=feature.title,
+            branch_name=feature.branch_name,
+            repository_name=feature.repository_full_name,
+            spec_content=spec_content,
+            plan_content=plan_content
+        )
+        
+        return GenerateDocumentResponse(
+            content=task_content,
+            used_copilot=request.enable_copilot and doc_gen.copilot_available,
+            model_used=request.copilot_model if request.enable_copilot else None,
+            message="Tasks generated successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to generate tasks: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate tasks: {str(e)}"
+        )
+

@@ -14,13 +14,20 @@ from typing import Optional, List
 from datetime import datetime
 import logging
 import uuid
+import os
+import subprocess
+import json
+import shutil
+import tempfile
+from pathlib import Path
 
-from src.models.github import Repository, Branch, Feature, FeatureStatus
+from src.models.github import Repository, Branch, Feature, FeatureStatus, Commit
 from src.models.auth import User
 from src.services.github_client import GitHubClient, GitHubAPIError, GitHubAuthenticationError
 from src.services.auth_service import auth_service
 from src.services.storage import storage
 from src.services.copilot_runner import CopilotRunner, SubprocessError
+from src.services.document_generator import DocumentGenerator
 from src.utils.error_handlers import create_error_response
 
 router = APIRouter(prefix="/api/v1/repos", tags=["repositories"])
@@ -78,10 +85,9 @@ class BranchListResponse(BaseModel):
 
 class CreateBranchRequest(BaseModel):
     """Request to create a new branch."""
-    branch_name: str = Field(..., description="Name for the new branch", min_length=1, max_length=255)
+    branch_name: Optional[str] = Field(None, description="Name for the new branch (auto-generated if not provided)", min_length=1, max_length=255)
     from_branch: str = Field(default="main", description="Base branch to create from")
     feature_title: str = Field(..., description="Feature title/description", min_length=1)
-    initialize_documents: bool = Field(default=True, description="Initialize spec/plan/task documents via Copilot CLI")
 
 
 class CreateBranchResponse(BaseModel):
@@ -264,18 +270,20 @@ async def create_branch(
     github_client: GitHubClient = Depends(get_github_client)
 ):
     """
-    Create a new feature branch with optional document initialization.
+    Create a new feature branch with Speckit.
     
-    Implements T091-T092:
-    - Creates branch via GitHub API
-    - Optionally invokes Copilot CLI to initialize spec/plan/task documents
-    - Uses copilot_runner service from Phase 2
-    - Tracks feature in storage (T093)
+    Workflow (simplified):
+    1. Call Speckit create-new-feature.sh script to create branch
+    2. Initialize directory structure (documents created via Generate buttons in UI)
+    3. Track feature in storage
+    
+    Note: Spec/plan/task generation moved to document endpoints (Generate buttons)
+    to avoid frontend timeout during branch creation.
     
     Args:
         owner: Repository owner
         repo: Repository name
-        request: Branch creation request
+        request: Branch creation request with feature title
         x_session_id: Session ID for user context
         github_client: Authenticated GitHub client
     
@@ -286,14 +294,6 @@ async def create_branch(
         repo_full_name = f"{owner}/{repo}"
         feature_id = f"feat_{uuid.uuid4().hex[:16]}"
         
-        # T091: Create branch via GitHub API
-        logger.info(f"Creating branch '{request.branch_name}' in {repo_full_name} from '{request.from_branch}'")
-        branch = await github_client.create_branch(
-            repo_full_name=repo_full_name,
-            branch_name=request.branch_name,
-            from_branch=request.from_branch
-        )
-        
         # Get user from session
         session = auth_service.get_session(x_session_id)
         if not session:
@@ -302,96 +302,255 @@ async def create_branch(
                 detail="Invalid or expired session"
             )
         
-        # T093: Create Feature model
+        # Get token for GitHub operations
+        token = auth_service.get_session_token(x_session_id)
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Failed to retrieve authentication token"
+            )
+        
+        # Step 1: Use Speckit script to create branch structure
+        branch_name = request.branch_name
+        if not branch_name:
+            # If branch_name not provided, generate from feature title
+            logger.info(f"Auto-generating branch name from feature title")
+            import re
+            branch_name = "feature/" + re.sub(r'[^a-z0-9]+', '-', request.feature_title.lower())[:50]
+        
+        logger.info(f"Creating feature branch via Speckit: {branch_name}")
+        
+        # Path to Speckit script (from app repo)
+        app_repo_root = Path(__file__).parent.parent.parent.parent
+        speckit_script = app_repo_root / ".specify/scripts/bash/create-new-feature.sh"
+        speckit_dir = app_repo_root / ".specify"
+        
+        if not speckit_script.exists():
+            logger.warning(f"Speckit script not found at {speckit_script}, using direct GitHub API")
+            # Fallback: create branch directly
+            branch = await github_client.create_branch(
+                repo_full_name=repo_full_name,
+                branch_name=branch_name,
+                from_branch=request.from_branch
+            )
+            spec_file_path = f"specs/{branch_name}/spec.md"
+            plan_file_path = f"specs/{branch_name}/plan.md"
+            task_file_path = f"specs/{branch_name}/tasks.md"
+        else:
+            # Use Speckit script (preferred) in the selected repo
+            cmd = ["bash", str(speckit_script), "--json"]
+            if branch_name:
+                cmd.extend(["--short-name", branch_name.replace("feature/", "")])
+            cmd.append(request.feature_title)  # Use feature title as argument
+            
+            # Prepare environment for git operations
+            env = os.environ.copy()
+            env["GH_TOKEN"] = token
+            env["GITHUB_TOKEN"] = token
+            env["GIT_TERMINAL_PROMPT"] = "0"
+            env["GIT_ASKPASS"] = "echo"
+            
+            # Clone the selected repo to a temporary workspace
+            with tempfile.TemporaryDirectory(prefix="speckit-") as temp_dir:
+                temp_repo_root = Path(temp_dir) / "repo"
+                clone_url = f"https://x-access-token:{token}@github.com/{repo_full_name}.git"
+                clone_cmd = [
+                    "git",
+                    "clone",
+                    "--depth",
+                    "1",
+                    "--branch",
+                    request.from_branch,
+                    clone_url,
+                    str(temp_repo_root)
+                ]
+                
+                clone_result = subprocess.run(
+                    clone_cmd,
+                    capture_output=True,
+                    text=True,
+                    env=env
+                )
+                if clone_result.returncode != 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Failed to clone target repository: {clone_result.stderr}"
+                    )
+                
+                # Ensure .specify exists in the target repo for templates/scripts
+                if not (temp_repo_root / ".specify").exists():
+                    shutil.copytree(speckit_dir, temp_repo_root / ".specify", dirs_exist_ok=True)
+                
+                # Configure git identity for commit
+                git_user_name = session.user.name or session.user.login
+                git_user_email = session.user.email or f"{session.user.login}@users.noreply.github.com"
+                subprocess.run(
+                    ["git", "-C", str(temp_repo_root), "config", "user.name", git_user_name],
+                    capture_output=True,
+                    text=True
+                )
+                subprocess.run(
+                    ["git", "-C", str(temp_repo_root), "config", "user.email", git_user_email],
+                    capture_output=True,
+                    text=True
+                )
+                
+                logger.info("Running Speckit in selected repo...")
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    cwd=str(temp_repo_root),
+                    env=env
+                )
+                
+                stdout, stderr = process.communicate()
+                
+                logger.info(f"Speckit stdout: {stdout[:200]}")
+                if stderr:
+                    logger.warning(f"Speckit stderr: {stderr[:200]}")
+                
+                # Parse JSON output from Speckit
+                branch_created = False
+                spec_file_path = None
+                for line in stdout.split("\n"):
+                    if line.strip().startswith("{"):
+                        try:
+                            data = json.loads(line)
+                            if "BRANCH_NAME" in data:
+                                branch_name = data["BRANCH_NAME"]
+                                branch_created = True
+                                logger.info(f"Speckit created branch: {branch_name}")
+                            if "SPEC_FILE" in data:
+                                spec_file_path = data["SPEC_FILE"]
+                        except json.JSONDecodeError:
+                            pass
+                
+                if not branch_created or not spec_file_path:
+                    logger.error(f"Speckit failed - stdout: {stdout[:500]}, stderr: {stderr[:500]}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Speckit script failed: {stderr or 'Unknown error'}"
+                    )
+                
+                # Normalize paths to repo-relative (handle /private prefix on macOS)
+                spec_path_obj = Path(spec_file_path)
+                if spec_path_obj.is_absolute():
+                    spec_path_obj_resolved = spec_path_obj.resolve()
+                    temp_repo_resolved = temp_repo_root.resolve()
+                    try:
+                        spec_path_obj = spec_path_obj_resolved.relative_to(temp_repo_resolved)
+                    except ValueError:
+                        # Fallback: strip /private prefix if present
+                        spec_str = str(spec_path_obj_resolved)
+                        temp_str = str(temp_repo_resolved)
+                        if spec_str.startswith("/private") and not temp_str.startswith("/private"):
+                            spec_str = spec_str[len("/private"):]
+                        if temp_str.startswith("/private") and not spec_str.startswith("/private"):
+                            temp_str = temp_str[len("/private"):]
+                        spec_path_obj = Path(spec_str).relative_to(Path(temp_str))
+                spec_file_path = spec_path_obj.as_posix()
+                spec_dir = spec_path_obj.parent
+                plan_file_path = str(spec_dir / "plan.md")
+                task_file_path = str(spec_dir / "tasks.md")
+                
+                # Skip enrichment during branch creation - moved to Generate button in UI
+                # This avoids timeout issues by keeping branch creation fast
+                logger.info("Branch created - spec generation will be handled via UI Generate button")
+                
+                # Commit the empty directory structure from Speckit
+                commit_message = f"Initialize feature: {request.feature_title}"
+                subprocess.run(
+                    ["git", "-C", str(temp_repo_root), "add", str(spec_dir)],
+                    capture_output=True,
+                    text=True
+                )
+                commit_result = subprocess.run(
+                    ["git", "-C", str(temp_repo_root), "commit", "-m", commit_message],
+                    capture_output=True,
+                    text=True
+                )
+                if commit_result.returncode != 0 and "nothing to commit" not in (commit_result.stderr or "").lower():
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Failed to commit feature structure: {commit_result.stderr}"
+                    )
+                
+                # Push the branch to GitHub
+                push_cmd = ["git", "-C", str(temp_repo_root), "push", "-u", "origin", branch_name]
+                push_result = subprocess.run(
+                    push_cmd,
+                    capture_output=True,
+                    text=True,
+                    env=env
+                )
+                if push_result.returncode != 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Failed to push branch to GitHub: {push_result.stderr}"
+                    )
+                logger.info(f"Branch {branch_name} pushed to GitHub successfully")
+            
+            # Speckit already created the branch and pushed to GitHub
+            # Just construct a Branch object with the branch name
+            branch = Branch(
+                name=branch_name,
+                commit=Commit(
+                    sha="0000000000000000000000000000000000000000",  # Placeholder SHA (40 chars required)
+                    url=f"https://api.github.com/repos/{repo_full_name}/commits/0000000000000000000000000000000000000000"
+                ),
+                protected=False,
+                protection_url=None
+            )
+            logger.info(f"Branch created by Speckit: {branch_name}")
+        
+        # Step 2: Directory structure created by Speckit
+        # Document generation moved to UI Generate buttons (no timeout)
+        documents_initialized = False
+        spec_file_path = f"specs/{branch_name}/spec.md"
+        plan_file_path = None  # Not generated during branch creation
+        task_file_path = None  # Not generated during branch creation
+        
+        logger.info("Feature branch created - documents can be generated via UI Generate buttons")
+        
+        # Step 3: Create Feature model and persist
         feature = Feature(
             feature_id=feature_id,
             repository_full_name=repo_full_name,
-            branch_name=request.branch_name,
+            branch_name=branch_name,
             base_branch=request.from_branch,
             title=request.feature_title,
-            status=FeatureStatus.INITIALIZING if request.initialize_documents else FeatureStatus.ACTIVE,
+            status=FeatureStatus.ACTIVE,
             created_by_user_id=session.user.id,
             created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            updated_at=datetime.utcnow(),
+            spec_path=spec_file_path,
+            plan_path=plan_file_path if documents_initialized else None,
+            task_path=task_file_path if documents_initialized else None
         )
         
-        documents_initialized = False
-        spec_path = None
-        plan_path = None
-        task_path = None
-        
-        # T092: Initialize documents via Copilot CLI (if requested)
-        if request.initialize_documents:
-            try:
-                logger.info(f"Initializing documents for feature {feature_id} via Copilot CLI")
-                
-                # Get token for subprocess
-                token = auth_service.get_session_token(x_session_id)
-                if not token:
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Failed to retrieve authentication token"
-                    )
-                
-                # Create copilot runner
-                runner = CopilotRunner(timeout_seconds=120)
-                
-                # Run Copilot CLI to initialize documents
-                # Note: This is a placeholder - actual command depends on Copilot CLI implementation
-                # Example: gh copilot init --repo owner/repo --branch branch_name --title "Feature Title"
-                result = await runner.run_command(
-                    args=[
-                        "copilot", "init",
-                        "--repo", repo_full_name,
-                        "--branch", request.branch_name,
-                        "--title", request.feature_title
-                    ],
-                    github_token=token,
-                    working_dir=None
-                )
-                
-                if result.return_code == 0:
-                    documents_initialized = True
-                    # Update feature with document paths (conventional paths)
-                    spec_path = f"specs/{request.branch_name}/spec.md"
-                    plan_path = f"specs/{request.branch_name}/plan.md"
-                    task_path = f"specs/{request.branch_name}/tasks.md"
-                    
-                    feature.spec_path = spec_path
-                    feature.plan_path = plan_path
-                    feature.task_path = task_path
-                    feature.status = FeatureStatus.ACTIVE
-                    
-                    logger.info(f"Documents initialized successfully for feature {feature_id}")
-                else:
-                    logger.warning(f"Copilot CLI returned non-zero: {result.return_code}")
-                    logger.warning(f"Stderr: {result.stderr}")
-                    feature.status = FeatureStatus.ACTIVE  # Continue anyway
-                    
-            except SubprocessError as e:
-                logger.error(f"Copilot CLI subprocess error: {str(e)}")
-                # Don't fail the entire request - branch was created
-                feature.status = FeatureStatus.ACTIVE
-            except Exception as e:
-                logger.exception(f"Unexpected error during document initialization: {str(e)}")
-                feature.status = FeatureStatus.ACTIVE
-        
-        # T093: Persist feature to storage
         storage.save_feature(feature)
         logger.info(f"Feature {feature_id} saved to storage")
         
         return CreateBranchResponse(
             branch=branch,
             feature_id=feature_id,
-            message=f"Branch '{request.branch_name}' created successfully",
+            message=f"Branch '{branch_name}' created successfully. Use Generate buttons to create documents.",
             documents_initialized=documents_initialized,
-            spec_path=spec_path,
-            plan_path=plan_path,
-            task_path=task_path
+            spec_path=spec_file_path,
+            plan_path=plan_file_path,
+            task_path=task_file_path
         )
         
+    except subprocess.TimeoutExpired:
+        logger.error("Speckit script timeout")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Feature creation timed out"
+        )
     except GitHubAPIError as e:
-        logger.error(f"GitHub API error creating branch: {str(e)}")
+        logger.error(f"GitHub API error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to create branch: {str(e)}"

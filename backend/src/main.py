@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 import logging
 
-from src.api import auth, websocket, repositories, documents
+from src.api import auth, websocket, repositories, documents, system
 from src.utils.error_handlers import register_exception_handlers
 from src.utils.logging import setup_logging
 
@@ -62,6 +62,7 @@ app.include_router(auth.router)
 app.include_router(websocket.router)
 app.include_router(repositories.router)
 app.include_router(documents.router)
+app.include_router(system.router)
 
 # Health check endpoint
 @app.get("/health")
