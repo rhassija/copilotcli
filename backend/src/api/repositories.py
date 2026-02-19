@@ -521,3 +521,57 @@ async def list_all_features(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list features: {str(e)}"
         )
+
+
+# ========================================================================
+# Diagnostic Endpoint (for debugging)
+# ========================================================================
+
+class StorageStatusResponse(BaseModel):
+    """Response for storage status check."""
+    total_features: int
+    total_sessions: int
+    features_by_repo: dict
+    persistence_enabled: bool
+    message: str
+
+
+@router.get("/health/storage", response_model=StorageStatusResponse, status_code=status.HTTP_200_OK)
+async def get_storage_status():
+    """
+    Get diagnostic information about backend storage.
+    
+    Returns:
+        StorageStatusResponse with storage state information
+    """
+    try:
+        all_features = storage.list_features()
+        
+        # Group features by repository
+        features_by_repo = {}
+        for feature in all_features:
+            repo = feature.repository_full_name
+            if repo not in features_by_repo:
+                features_by_repo[repo] = []
+            features_by_repo[repo].append({
+                "feature_id": feature.feature_id,
+                "branch_name": feature.branch_name,
+                "title": feature.title,
+                "status": feature.status
+            })
+        
+        return StorageStatusResponse(
+            total_features=len(all_features),
+            total_sessions=len(storage._sessions),
+            features_by_repo=features_by_repo,
+            persistence_enabled=True,
+            message=f"Backend is running. {len(all_features)} features in storage."
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting storage status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting storage status: {str(e)}"
+        )
+

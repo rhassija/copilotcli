@@ -7,10 +7,16 @@ Provides thread-safe in-memory storage for:
 - Documents
 - WebSocket connections and operations
 
+Features are persisted to disk in JSON format to survive backend restarts.
+Sessions are kept in-memory only (expire on restart).
+
 Note: This will be replaced with database storage (PostgreSQL + SQLAlchemy) in Phase 2.
 """
 
 import threading
+import json
+import os
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -26,15 +32,29 @@ class InMemoryStorage:
     Thread-safe in-memory storage for all application data.
     
     Uses dictionaries with threading.Lock for concurrent access safety.
-    All data is lost on application restart.
+    
+    Features are persisted to disk in JSON format for durability across restarts.
+    Sessions are kept in-memory only (expire on restart).
+    
+    Storage paths:
+    - Features: ./.data/features.json
+    - Operations: ./.data/operations.json
     """
     
+    # Data directory for persistence
+    DATA_DIR = Path("./.data")
+    FEATURES_FILE = DATA_DIR / "features.json"
+    OPERATIONS_FILE = DATA_DIR / "operations.json"
+    
     def __init__(self):
-        """Initialize storage with empty collections."""
+        """Initialize storage with empty collections and load persisted data."""
         # Locks for thread-safe operations
         self._lock = threading.RLock()
         
-        # Authentication storage
+        # Ensure data directory exists
+        self.DATA_DIR.mkdir(exist_ok=True)
+        
+        # Authentication storage (in-memory only, not persisted)
         self._sessions: Dict[str, AuthSession] = {}  # session_id -> AuthSession
         self._users: Dict[int, User] = {}  # user_id -> User
         self._tokens: Dict[str, Token] = {}  # token_id -> Token
@@ -58,6 +78,10 @@ class InMemoryStorage:
         # Caches with TTL
         self._cache: Dict[str, Any] = {}  # cache_key -> cached_value
         self._cache_expiry: Dict[str, datetime] = {}  # cache_key -> expiry_time
+        
+        # Load persisted data from disk
+        self._load_features_from_disk()
+        self._load_operations_from_disk()
     
     # ========================================================================
     # Authentication Operations
@@ -141,6 +165,7 @@ class InMemoryStorage:
         """Save or update a feature."""
         with self._lock:
             self._features[feature.feature_id] = feature
+            self._persist_features_to_disk()
     
     def get_feature(self, feature_id: str) -> Optional[Feature]:
         """Get feature by ID."""
@@ -165,6 +190,7 @@ class InMemoryStorage:
         with self._lock:
             if feature_id in self._features:
                 del self._features[feature_id]
+                self._persist_features_to_disk()
                 return True
             return False
     
@@ -285,6 +311,7 @@ class InMemoryStorage:
         """Save or update an operation."""
         with self._lock:
             self._operations[operation.operation_id] = operation
+            self._persist_operations_to_disk()
     
     def get_operation(self, operation_id: str) -> Optional[Operation]:
         """Get operation by ID."""
@@ -343,6 +370,70 @@ class InMemoryStorage:
                     if key in self._cache_expiry:
                         del self._cache_expiry[key]
                 return len(keys_to_delete)
+    
+    # ========================================================================
+    # Persistence Operations (File-based for durability across restarts)
+    # ========================================================================
+    
+    def _load_features_from_disk(self) -> None:
+        """Load features from persistent JSON storage."""
+        try:
+            if self.FEATURES_FILE.exists():
+                with open(self.FEATURES_FILE, 'r') as f:
+                    data = json.load(f)
+                    for feature_id, feature_dict in data.items():
+                        try:
+                            feature = Feature(**feature_dict)
+                            self._features[feature_id] = feature
+                        except Exception as e:
+                            print(f"Warning: Failed to load feature {feature_id}: {e}")
+                    print(f"[Storage] Loaded {len(self._features)} features from disk")
+            else:
+                print("[Storage] No features file found - starting with empty features")
+        except Exception as e:
+            print(f"[Storage] Error loading features from disk: {e}")
+    
+    def _load_operations_from_disk(self) -> None:
+        """Load operations from persistent JSON storage."""
+        try:
+            if self.OPERATIONS_FILE.exists():
+                with open(self.OPERATIONS_FILE, 'r') as f:
+                    data = json.load(f)
+                    for operation_id, operation_dict in data.items():
+                        try:
+                            operation = Operation(**operation_dict)
+                            self._operations[operation_id] = operation
+                        except Exception as e:
+                            print(f"Warning: Failed to load operation {operation_id}: {e}")
+                    print(f"[Storage] Loaded {len(self._operations)} operations from disk")
+            else:
+                print("[Storage] No operations file found - starting with empty operations")
+        except Exception as e:
+            print(f"[Storage] Error loading operations from disk: {e}")
+    
+    def _persist_features_to_disk(self) -> None:
+        """Persist all features to JSON file."""
+        try:
+            with open(self.FEATURES_FILE, 'w') as f:
+                data = {
+                    feature_id: feature.dict() 
+                    for feature_id, feature in self._features.items()
+                }
+                json.dump(data, f, indent=2, default=str)
+        except Exception as e:
+            print(f"[Storage] Error persisting features to disk: {e}")
+    
+    def _persist_operations_to_disk(self) -> None:
+        """Persist all operations to JSON file."""
+        try:
+            with open(self.OPERATIONS_FILE, 'w') as f:
+                data = {
+                    operation_id: operation.dict() 
+                    for operation_id, operation in self._operations.items()
+                }
+                json.dump(data, f, indent=2, default=str)
+        except Exception as e:
+            print(f"[Storage] Error persisting operations to disk: {e}")
     
     # ========================================================================
     # Utility Operations

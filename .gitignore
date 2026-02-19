@@ -28,6 +28,9 @@ MANIFEST
 htmlcov/
 *.log
 
+# Data persistence directory
+.data/
+
 # Virtual environments (but NOT copilotcompanion - keep it)
 # venv/ is already excluded
 # Note: copilotcompanion/ is pre-existing and should be committed
