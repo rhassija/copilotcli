@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test - Copilot CLI</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .section { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        button { padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0052a3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .output { background: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin-top: 10px; border-radius: 4px; max-height: 400px; overflow: auto; font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+        .error { color: #d32f2f; }
+        .success { color: #388e3c; }
+        input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 400px; margin: 5px; }
+        .info { background: #e3f2fd; padding: 10px; border-left: 4px solid #2196f3; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Copilot CLI API Diagnostic Tool</h1>
+        
+        <div class="info">
+            <strong>Instructions:</strong>
+            <ol>
+                <li>Enter your GitHub token (from sessionStorage)</li>
+                <li>Click "Test Auth" to verify authentication</li>
+                <li>Click "Test Repos" to see if repository listing works</li>
+                <li>Click "Test Features" to see stored features</li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h2>1. Session Configuration</h2>
+            <div>
+                <label>Session ID (from browser):</label><br>
+                <input type="text" id="sessionId" placeholder="Your session ID from sessionStorage">
+                <button onclick="loadFromSessionStorage()">Load from SessionStorage</button>
+            </div>
+            <div style="margin-top: 10px;">
+                <label>API Base URL:</label><br>
+                <input type="text" id="apiUrl" value="http://localhost:8001">
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>2. Test Authentication</h2>
+            <button onclick="testAuth()">Test Auth Status</button>
+            <button onclick="testCopilot()">Test Copilot CLI</button>
+            <div id="authOutput" class="output" style="display:none;"></div>
+        </div>
+
+        <div class="section">
+            <h2>3. Test Repository Listing</h2>
+            <button onclick="testRepos()">Test GET /api/v1/repos</button>
+            <button onclick="testReposWithParams()">Test with Params</button>
+            <div id="reposOutput" class="output" style="display:none;"></div>
+        </div>
+
+        <div class="section">
+            <h2>4. Test Feature Listing</h2>
+            <input type="text" id="repoFullName" placeholder="owner/repo" value="">
+            <button onclick="testFeatures()">Test GET /repos/{owner}/{repo}/features</button>
+            <button onclick="testAllFeatures()">Test GET /features (all)</button>
+            <div id="featuresOutput" class="output" style="display:none;"></div>
+        </div>
+
+        <div class="section">
+            <h2>5. Console Logs</h2>
+            <div id="console" class="output"></div>
+        </div>
+    </div>
+
+    <script>
+        const log = (msg, isError = false) => {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = isError ? 'error' : 'success';
+            console.innerHTML += `<span class="${className}">[${timestamp}] ${msg}</span>\n`;
+            console.scrollTop = console.scrollHeight;
+        };
+
+        const loadFromSessionStorage = () => {
+            const sessionId = sessionStorage.getItem('sessionId');
+            if (sessionId) {
+                document.getElementById('sessionId').value = sessionId;
+                log(`✓ Loaded session ID: ${sessionId.substring(0, 16)}...`);
+            } else {
+                log('✗ No session ID found in sessionStorage', true);
+            }
+        };
+
+        const getHeaders = () => {
+            const sessionId = document.getElementById('sessionId').value;
+            if (!sessionId) {
+                log('✗ Session ID is required!', true);
+                return null;
+            }
+            return {
+                'Content-Type': 'application/json',
+                'X-Session-ID': sessionId
+            };
+        };
+
+        const testAuth = async () => {
+            const output = document.getElementById('authOutput');
+            output.style.display = 'block';
+            output.textContent = 'Testing authentication...';
+            
+            const headers = getHeaders();
+            if (!headers) {
+                output.textContent = 'ERROR: Session ID not set';
+                return;
+            }
+
+            try {
+                const url = `${document.getElementById('apiUrl').value}/api/v1/system/copilot-status`;
+                log(`GET ${url}`);
+                
+                const response = await fetch(url, { headers });
+                const data = await response.json();
+                
+                output.textContent = JSON.stringify(data, null, 2);
+                if (response.ok) {
+                    log(`✓ Auth status check succeeded`);
+                } else {
+                    log(`✗ Auth failed: ${response.status}`, true);
+                }
+            } catch (error) {
+                output.textContent = `ERROR: ${error.message}`;
+                log(`✗ Auth error: ${error.message}`, true);
+            }
+        };
+
+        const testCopilot = async () => {
+            const output = document.getElementById('authOutput');
+            output.style.display = 'block';
+            output.textContent = 'Testing Copilot CLI...';
+            
+            try {
+                const url = `${document.getElementById('apiUrl').value}/api/v1/system/copilot-status`;
+                log(`GET ${url} (no auth)`);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                output.textContent = JSON.stringify(data, null, 2);
+                if (data.available) {
+                    log(`✓ Copilot CLI is available at: ${data.path}`);
+                } else {
+                    log(`✗ Copilot CLI not found`, true);
+                }
+            } catch (error) {
+                output.textContent = `ERROR: ${error.message}`;
+                log(`✗ Copilot error: ${error.message}`, true);
+            }
+        };
+
+        const testRepos = async () => {
+            const output = document.getElementById('reposOutput');
+            output.style.display = 'block';
+            output.textContent = 'Fetching repositories...';
+            
+            const headers = getHeaders();
+            if (!headers) {
+                output.textContent = 'ERROR: Session ID not set';
+                return;
+            }
+
+            try {
+                const url = `${document.getElementById('apiUrl').value}/api/v1/repos`;
+                log(`GET ${url}`);
+                
+                const response = await fetch(url, { headers });
+                const data = await response.json();
+                
+                output.textContent = JSON.stringify(data, null, 2);
+                if (response.ok) {
+                    log(`✓ Repos loaded: ${data.repositories?.length || 0} repositories`);
+                } else {
+                    log(`✗ Repos failed: ${response.status} - ${data.error?.message || data.detail}`, true);
+                }
+            } catch (error) {
+                output.textContent = `ERROR: ${error.message}`;
+                log(`✗ Repos error: ${error.message}`, true);
+            }
+        };
+
+        const testReposWithParams = async () => {
+            const output = document.getElementById('reposOutput');
+            output.style.display = 'block';
+            output.textContent = 'Fetching repositories with params...';
+            
+            const headers = getHeaders();
+            if (!headers) {
+                output.textContent = 'ERROR: Session ID not set';
+                return;
+            }
+
+            try {
+                const url = `${document.getElementById('apiUrl').value}/api/v1/repos?visibility=all&sort=updated&page=1&per_page=10`;
+                log(`GET ${url}`);
+                
+                const response = await fetch(url, { headers });
+                const data = await response.json();
+                
+                output.textContent = JSON.stringify(data, null, 2);
+                if (response.ok) {
+                    log(`✓ Repos loaded: ${data.repositories?.length || 0} repositories (page ${data.page})`);
+                } else {
+                    log(`✗ Repos failed: ${response.status}`, true);
+                }
+            } catch (error) {
+                output.textContent = `ERROR: ${error.message}`;
+                log(`✗ Repos error: ${error.message}`, true);
+            }
+        };
+
+        const testFeatures = async () => {
+            const output = document.getElementById('featuresOutput');
+            output.style.display = 'block';
+            
+            const repoFullName = document.getElementById('repoFullName').value;
+            if (!repoFullName || !repoFullName.includes('/')) {
+                output.textContent = 'ERROR: Enter repository in format owner/repo';
+                log('✗ Invalid repository format', true);
+                return;
+            }
+
+            output.textContent = 'Fetching features...';
+            
+            const headers = getHeaders();
+            if (!headers) {
+                output.textContent = 'ERROR: Session ID not set';
+                return;
+            }
+
+            try {
+                const [owner, repo] = repoFullName.split('/');
+                const url = `${document.getElementById('apiUrl').value}/api/v1/repos/${owner}/${repo}/features`;
+                log(`GET ${url}`);
+                
+                const response = await fetch(url, { headers });
+                const data = await response.json();
+                
+                output.textContent = JSON.stringify(data, null, 2);
+                if (response.ok) {
+                    log(`✓ Features loaded: ${data.features?.length || 0} features for ${repoFullName}`);
+                } else {
+                    log(`✗ Features failed: ${response.status} - ${data.error?.message || data.detail}`, true);
+                }
+            } catch (error) {
+                output.textContent = `ERROR: ${error.message}`;
+                log(`✗ Features error: ${error.message}`, true);
+            }
+        };
+
+        const testAllFeatures = async () => {
+            const output = document.getElementById('featuresOutput');
+            output.style.display = 'block';
+            output.textContent = 'Fetching all features...';
+            
+            const headers = getHeaders();
+            if (!headers) {
+                output.textContent = 'ERROR: Session ID not set';
+                return;
+            }
+
+            try {
+                const url = `${document.getElementById('apiUrl').value}/api/v1/repos/features`;
+                log(`GET ${url}`);
+                
+                const response = await fetch(url, { headers });
+                const data = await response.json();
+                
+                output.textContent = JSON.stringify(data, null, 2);
+                if (response.ok) {
+                    log(`✓ All features loaded: ${data.features?.length || 0} features total`);
+                } else {
+                    log(`✗ Features failed: ${response.status}`, true);
+                }
+            } catch (error) {
+                output.textContent = `ERROR: ${error.message}`;
+                log(`✗ Features error: ${error.message}`, true);
+            }
+        };
+
+        // Auto-load session on page load
+        window.onload = () => {
+            log('🔧 Diagnostic tool loaded');
+            log('Open browser DevTools (F12) to see network requests');
+            loadFromSessionStorage();
+        };
+    </script>
+</body>
+</html>
