@@ -195,11 +195,11 @@
 
 ### Testing for US0
 
-- [ ] T082 [P] [US0] Contract test for `/auth/verify` endpoint in `backend/tests/contract/test_auth.py`
-- [ ] T083 [P] [US0] Unit test for token validation logic in `backend/tests/unit/test_auth_service.py`
-- [ ] T084 [US0] Component test for login form in `frontend/tests/unit/LoginPage.test.tsx`
-- [ ] T085 [US0] Integration test for full auth flow (user inputs token → verify → redirect)
-- [ ] T086 [US0] E2E test for authentication workflow in `frontend/tests/e2e/auth.spec.ts`
+- [X] T082 [P] [US0] Contract test for `/auth/verify` endpoint in `backend/tests/contract/test_auth.py`
+- [X] T083 [P] [US0] Unit test for token validation logic in `backend/tests/unit/test_auth_service.py`
+- [X] T084 [US0] Component test for login form in `frontend/tests/unit/LoginPage.test.tsx`
+- [X] T085 [US0] Integration test for full auth flow (user inputs token → verify → redirect)
+- [X] T086 [US0] E2E test for authentication workflow in `frontend/tests/e2e/auth.spec.ts`
 
 **Checkpoint**: User Story 0 complete - users can now authenticate. Proceed to US1 & US2.
 
