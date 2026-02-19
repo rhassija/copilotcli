@@ -435,8 +435,15 @@ async def list_features(
     try:
         repo_full_name = f"{owner}/{repo}"
         
+        # Get ALL features to debug
+        all_features = storage.list_features()
+        logger.info(f"DEBUG: Total features in storage: {len(all_features)}")
+        for f in all_features:
+            logger.info(f"  - Feature: {f.feature_id} | Repo: {f.repository_full_name} | Branch: {f.branch_name} | Title: {f.title}")
+        
         # Get features from storage (filtered by repository)
         features = storage.list_features(repository_full_name=repo_full_name)
+        logger.info(f"DEBUG: Found {len(features)} features for {repo_full_name}")
         
         # Apply status filter if provided
         if status_filter:
