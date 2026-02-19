@@ -1,0 +1,36 @@
+# Build outputs
+node_modules/
+dist/
+build/
+out/
+.next/
+.coverage/
+coverage/
+
+# Package management
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Generated files
+*.min.js
+.git/
+
+# IDE
+.vscode/
+.idea/
+
+# Specs and documentation
+specs/
+.specify/
+
+# Test setup files (if linting would conflict)
+.docker/
+
+# Python
+__pycache__/
+*.pyc
+.venv
+
+# Environment
+.env*

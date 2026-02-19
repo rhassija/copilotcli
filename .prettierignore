@@ -1,0 +1,40 @@
+# Build outputs
+node_modules/
+dist/
+build/
+out/
+.next/
+coverage/
+
+# Package management
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.yarn/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+.DS_Store
+
+# Generated files
+*.min.js
+*.min.css
+
+# Third-party
+vendor/
+
+# Test coverage
+.nyc_output/
+coverage/
+
+# Specs and documentation
+specs/
+.specify/
+README.md
+TESTING-GUIDE.md
+IMPLEMENTATION-SUMMARY.md
+
+# Environment
+.env*
