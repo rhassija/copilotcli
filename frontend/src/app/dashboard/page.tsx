@@ -20,6 +20,7 @@ import { FeatureList } from '../../components/FeatureList';
 export default function DashboardPage() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
   
   // Repository and feature state
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
@@ -27,10 +28,19 @@ export default function DashboardPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, isLoading, router]);
+
+  // Prevent hydration mismatch by waiting for client-side mount
+  if (!isMounted) {
+    return null;
+  }
 
   if (isLoading) {
     return (
