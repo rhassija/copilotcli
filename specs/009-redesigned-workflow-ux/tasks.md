@@ -114,21 +114,21 @@
 
 ### Backend Foundation: Copilot CLI Subprocess Runner
 
-- [ ] T038 [P] Create subprocess runner in `backend/src/services/copilot_runner.py`
-- [ ] T039 Implement subprocess spawning with token injection via environment
-- [ ] T040 Implement stdout/stderr capture with line-by-line parsing
-- [ ] T041 Implement timeout handling (5 min max per operation)
-- [ ] T042 Implement error handling for subprocess failures
+- [X] T038 [P] Create subprocess runner in `backend/src/services/copilot_runner.py`
+- [X] T039 Implement subprocess spawning with token injection via environment
+- [X] T040 Implement stdout/stderr capture with line-by-line parsing
+- [X] T041 Implement timeout handling (5 min max per operation)
+- [X] T042 Implement error handling for subprocess failures
 
 ### Backend Foundation: WebSocket Infrastructure
 
-- [ ] T043 [P] Setup WebSocket route in `backend/src/api/websocket.py`
-- [ ] T044 [P] Implement message queue per operation_id in memory
-- [ ] T045 Implement WebSocket connection manager (track active connections)
-- [ ] T046 Implement message broadcasting to all clients on same operation_id
-- [ ] T047 Implement reconnection logic (last_received_sequence replay)
-- [ ] T048 Implement message history retention (5-10 min per operation)
-- [ ] T049 Implement graceful connection close and cleanup
+- [X] T043 [P] Setup WebSocket route in `backend/src/api/websocket.py`
+- [X] T044 [P] Implement message queue per operation_id in memory
+- [X] T045 Implement WebSocket connection manager (track active connections)
+- [X] T046 Implement message broadcasting to all clients on same operation_id
+- [X] T047 Implement reconnection logic (last_received_sequence replay)
+- [X] T048 Implement message history retention (5-10 min per operation)
+- [X] T049 Implement graceful connection close and cleanup
 
 ### Backend Foundation: Error Handling & Logging
 
