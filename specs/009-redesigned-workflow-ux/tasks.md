@@ -65,17 +65,17 @@
 
 ### Testing Infrastructure
 
-- [ ] T013 [P] Setup pytest in `backend/` with conftest.py fixtures
-- [ ] T014 [P] Setup Vitest in `frontend/` with component testing configuration
-- [ ] T015 [P] Configure E2E testing with Playwright in `frontend/tests/e2e/`
-- [ ] T016 Create mock GitHub API server for testing: `backend/tests/mocks/github_server.py`
+- [x] T013 [P] Setup pytest in `backend/` with conftest.py fixtures
+- [x] T014 [P] Setup Vitest in `frontend/` with component testing configuration
+- [x] T015 [P] Configure E2E testing with Playwright in `frontend/tests/e2e/`
+- [x] T016 Create mock GitHub API server for testing: `backend/tests/mocks/github_server.py`
 
 ### Docker & Deployment Setup
 
-- [ ] T017 Create `docker-compose.yml` for local development (backend + frontend)
-- [ ] T018 [P] Create frontend Docker image: `frontend/Dockerfile`
-- [ ] T019 Setup `.dockerignore` files for both backend and frontend
-- [ ] T020 Create deployment documentation: `DEPLOYMENT.md` (structure, no implementation yet)
+- [x] T017 Create `docker-compose.yml` for local development (backend + frontend)
+- [x] T018 [P] Create frontend Docker image: `frontend/Dockerfile`
+- [x] T019 Setup `.dockerignore` files for both backend and frontend
+- [x] T020 Create deployment documentation: `DEPLOYMENT.md` (structure, no implementation yet)
 
 ---
 
