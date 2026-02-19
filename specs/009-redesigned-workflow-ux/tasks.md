@@ -250,29 +250,29 @@
 
 #### Backend for US2
 
-- [ ] T108 [P] [US2] Create document endpoints in `backend/src/api/documents.py`: `GET /features/{id}/spec`
-- [ ] T109 [P] [US2] Create spec fetch endpoint (read from GitHub)
-- [ ] T110 [P] [US2] Create spec update endpoint: `PUT /features/{id}/spec`
-- [ ] T111 [US2] Implement spec persistence to GitHub via API (version tracking)
-- [ ] T112 [P] [US2] Create plan fetch endpoint: `GET /features/{id}/plan`
-- [ ] T113 [P] [US2] Create plan update endpoint: `PUT /features/{id}/plan`
-- [ ] T114 [P] [US2] Create task fetch endpoint: `GET /features/{id}/task`
-- [ ] T115 [P] [US2] Create task update endpoint: `PUT /features/{id}/task`
-- [ ] T116 [US2] Implement optimistic locking (if_match header for conflict detection)
+- [X] T108 [P] [US2] Create document endpoints in `backend/src/api/documents.py`: `GET /features/{id}/spec`
+- [X] T109 [P] [US2] Create spec fetch endpoint (read from GitHub)
+- [X] T110 [P] [US2] Create spec update endpoint: `PUT /features/{id}/spec`
+- [X] T111 [US2] Implement spec persistence to GitHub via API (version tracking)
+- [X] T112 [P] [US2] Create plan fetch endpoint: `GET /features/{id}/plan`
+- [X] T113 [P] [US2] Create plan update endpoint: `PUT /features/{id}/plan`
+- [X] T114 [P] [US2] Create task fetch endpoint: `GET /features/{id}/task`
+- [X] T115 [P] [US2] Create task update endpoint: `PUT /features/{id}/task`
+- [X] T116 [US2] Implement optimistic locking (if_match header for conflict detection)
 
 #### Frontend for US2
 
-- [ ] T117 [P] [US2] Create tab layout component in `frontend/src/components/TabLayout.tsx`
-- [ ] T118 [P] [US2] Create SpecEditor component in `frontend/src/components/DocumentEditors/SpecEditor.tsx`
-- [ ] T119 [US2] Implement spec content editing with markdown support
-- [ ] T120 [US2] Implement spec save button + unsaved changes indicator
-- [ ] T121 [P] [US2] Create PlanEditor component in `frontend/src/components/DocumentEditors/PlanEditor.tsx`
-- [ ] T122 [P] [US2] Create TaskEditor component in `frontend/src/components/DocumentEditors/TaskEditor.tsx`
-- [ ] T123 [US2] Implement editor theme + syntax highlighting for markdown
-- [ ] T124 [US2] Implement tab switching preserve state (unsaved changes warning)
-- [ ] T125 [US2] Implement "Create Spec" template button (creates placeholder)
-- [ ] T126 [US2] Implement "Create Plan" template button
-- [ ] T127 [US2] Implement "Create Task" template button
+- [X] T117 [P] [US2] Create tab layout component in `frontend/src/components/TabLayout.tsx`
+- [X] T118 [P] [US2] Create SpecEditor component in `frontend/src/components/DocumentEditors/SpecEditor.tsx`
+- [X] T119 [US2] Implement spec content editing with markdown support
+- [X] T120 [US2] Implement spec save button + unsaved changes indicator
+- [X] T121 [P] [US2] Create PlanEditor component in `frontend/src/components/DocumentEditors/PlanEditor.tsx`
+- [X] T122 [P] [US2] Create TaskEditor component in `frontend/src/components/DocumentEditors/TaskEditor.tsx`
+- [X] T123 [US2] Implement editor theme + syntax highlighting for markdown
+- [X] T124 [US2] Implement tab switching preserve state (unsaved changes warning)
+- [X] T125 [US2] Implement "Create Spec" template button (creates placeholder)
+- [X] T126 [US2] Implement "Create Plan" template button
+- [X] T127 [US2] Implement "Create Task" template button
 
 #### Testing for US2
 
