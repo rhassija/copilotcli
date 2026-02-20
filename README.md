@@ -2,6 +2,10 @@
 
 A modern web-based interface for the Copilot CLI that enables real-time, streaming document generation (specifications, plans, and tasks) with live updates and transparent AI thinking processes.
 
+## 📖 Why CoPilot Companion?
+
+AI-powered development tools like GitHub Copilot are transforming how developers write code—but they're leaving a critical 70% of the software lifecycle untouched: requirements gathering, specification writing, and planning. Business teams who understand the problems best cannot directly use these tools, creating a costly disconnect between intent and implementation. CoPilot Companion bridges this gap by providing an intuitive web interface that connects all personas—product managers, business analysts, developers, and domain experts—to AI-powered spec-driven development workflows. Instead of managing requirements through emails and meetings, teams now collaborate through a single, transparent system that orchestrates GitHub Copilot and SpecKit to generate formal specifications, plans, and tasks automatically. The result: requirements clarification cycles compress from weeks to days, cross-functional alignment improves, and AI benefits extend across the entire software lifecycle, not just the coding phase.
+
 ## 🎯 Overview
 
 This project provides a Next.js + FastAPI web application that allows users to:
