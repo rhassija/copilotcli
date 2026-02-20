@@ -198,7 +198,7 @@ class ConnectionManager:
         
         if websocket:
             try:
-                await websocket.send_json(message.model_dump())
+                await websocket.send_json(message.model_dump(mode="json"))
                 logger.debug(f"Sent message {message.message_id} to {connection_id}")
             except Exception as e:
                 logger.error(f"Failed to send message to {connection_id}: {e}")

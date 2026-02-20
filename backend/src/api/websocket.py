@@ -11,6 +11,7 @@ Provides:
 import asyncio
 import logging
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, status
@@ -94,7 +95,7 @@ async def websocket_endpoint(
             collapsible=False
         )
         
-        await websocket.send_json(connection_message.model_dump())
+        await websocket.send_json(connection_message.model_dump(mode="json"))
         
         # Message handling loop
         while True:
@@ -123,7 +124,7 @@ async def websocket_endpoint(
                             is_final=False,
                             collapsible=False
                         )
-                        await websocket.send_json(confirm_msg.model_dump())
+                        await websocket.send_json(confirm_msg.model_dump(mode="json"))
                 
                 elif message_type == "unsubscribe":
                     # Unsubscribe from operation
@@ -156,7 +157,7 @@ async def websocket_endpoint(
                             is_final=False,
                             collapsible=False
                         )
-                        await websocket.send_json(replay_msg.model_dump())
+                        await websocket.send_json(replay_msg.model_dump(mode="json"))
                 
                 elif message_type == "acknowledge":
                     # Update acknowledged sequence
@@ -185,7 +186,7 @@ async def websocket_endpoint(
                         is_final=False,
                         collapsible=False
                     )
-                    await websocket.send_json(pong_msg.model_dump())
+                    await websocket.send_json(pong_msg.model_dump(mode="json"))
             
             except WebSocketDisconnect:
                 break
@@ -205,7 +206,7 @@ async def websocket_endpoint(
                     collapsible=False
                 )
                 try:
-                    await websocket.send_json(error_msg.model_dump())
+                    await websocket.send_json(error_msg.model_dump(mode="json"))
                 except:
                     break
     

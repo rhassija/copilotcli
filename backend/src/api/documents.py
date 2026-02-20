@@ -12,14 +12,18 @@ from fastapi import APIRouter, HTTPException, status, Depends, Header, Body
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
+import asyncio
 import logging
 
 from src.models.github import Feature
+from src.models.websocket import WebSocketMessage, MessageType, MessagePriority
 from src.services.github_client import GitHubClient, GitHubAPIError
 from src.services.auth_service import auth_service
 from src.services.storage import storage
 from src.services.document_generator import DocumentGenerator
+from src.services.websocket_manager import connection_manager
 from src.utils.error_handlers import create_error_response
+import uuid
 
 router = APIRouter(prefix="/api/v1/features", tags=["documents"])
 logger = logging.getLogger(__name__)
@@ -992,6 +996,54 @@ class GenerateDocumentRequest(BaseModel):
     enable_copilot: bool = Field(default=True, description="Use Copilot CLI enrichment")
     copilot_model: Optional[str] = Field(None, description="Copilot model name (e.g., gpt-4)")
     include_context: bool = Field(default=True, description="Include existing documents as context")
+    operation_id: Optional[str] = Field(None, description="WebSocket operation ID for live updates")
+
+
+async def _emit_ws_message(
+    operation_id: str,
+    sequence: int,
+    message_type: MessageType,
+    content: str,
+    priority: MessagePriority = MessagePriority.NORMAL,
+    is_final: bool = False,
+    data: Optional[dict] = None,
+    collapsible: bool = False,
+) -> None:
+    message = WebSocketMessage(
+        message_id=str(uuid.uuid4()),
+        operation_id=operation_id,
+        sequence=sequence,
+        type=message_type,
+        content=content,
+        data=data,
+        priority=priority,
+        is_final=is_final,
+        collapsible=collapsible,
+    )
+    await connection_manager.broadcast_to_operation(operation_id, message)
+
+
+async def _run_with_progress(
+    operation_id: Optional[str],
+    sequence: int,
+    progress_message: str,
+    func,
+    *args,
+    **kwargs
+):
+    if not operation_id:
+        result = await asyncio.to_thread(func, *args, **kwargs)
+        return result, sequence
+
+    await _emit_ws_message(
+        operation_id=operation_id,
+        sequence=sequence,
+        message_type=MessageType.PROGRESS,
+        content=progress_message,
+    )
+    sequence += 1
+    result = await asyncio.to_thread(func, *args, **kwargs)
+    return result, sequence
 
 
 class GenerateDocumentResponse(BaseModel):
@@ -1036,6 +1088,15 @@ async def generate_spec(
             )
         
         logger.info(f"Generating spec for feature {feature_id} with Copilot: {request.enable_copilot}")
+        sequence = 0
+        if request.operation_id:
+            await _emit_ws_message(
+                operation_id=request.operation_id,
+                sequence=sequence,
+                message_type=MessageType.EXECUTION,
+                content="Starting spec generation...",
+            )
+            sequence += 1
         
         # Create document generator
         doc_gen = DocumentGenerator(
@@ -1044,12 +1105,34 @@ async def generate_spec(
         )
         
         # Generate spec
-        spec_content = doc_gen.generate_spec(
+        if request.operation_id and request.enable_copilot:
+            await _emit_ws_message(
+                operation_id=request.operation_id,
+                sequence=sequence,
+                message_type=MessageType.THINKING,
+                content="Copilot CLI is generating your specification...",
+                collapsible=True,
+            )
+            sequence += 1
+        spec_content, sequence = await _run_with_progress(
+            request.operation_id,
+            sequence,
+            "Generating specification...",
+            doc_gen.generate_spec,
             requirement=request.requirement_description,
             feature_title=feature.title,
             branch_name=feature.branch_name,
             repository_name=feature.repository_full_name
         )
+
+        if request.operation_id:
+            await _emit_ws_message(
+                operation_id=request.operation_id,
+                sequence=sequence,
+                message_type=MessageType.COMPLETE,
+                content="Spec generation complete. Review and save when ready.",
+                is_final=True,
+            )
         
         return GenerateDocumentResponse(
             content=spec_content,
@@ -1062,6 +1145,15 @@ async def generate_spec(
         raise
     except Exception as e:
         logger.exception(f"Failed to generate spec: {str(e)}")
+        if request.operation_id:
+            await _emit_ws_message(
+                operation_id=request.operation_id,
+                sequence=999,
+                message_type=MessageType.ERROR,
+                content=f"Spec generation failed: {str(e)}",
+                priority=MessagePriority.HIGH,
+                is_final=True,
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate spec: {str(e)}"
@@ -1099,6 +1191,15 @@ async def generate_plan(
             )
         
         logger.info(f"Generating plan for feature {feature_id} with Copilot: {request.enable_copilot}")
+        sequence = 0
+        if request.operation_id:
+            await _emit_ws_message(
+                operation_id=request.operation_id,
+                sequence=sequence,
+                message_type=MessageType.EXECUTION,
+                content="Starting plan generation...",
+            )
+            sequence += 1
         
         # Load spec for context (if requested)
         spec_content = None
@@ -1110,6 +1211,14 @@ async def generate_plan(
                     branch=feature.branch_name
                 )
                 logger.info(f"Loaded spec context ({len(spec_content)} chars)")
+                if request.operation_id:
+                    await _emit_ws_message(
+                        operation_id=request.operation_id,
+                        sequence=sequence,
+                        message_type=MessageType.PROGRESS,
+                        content="Loaded spec context for plan generation.",
+                    )
+                    sequence += 1
             except GitHubAPIError:
                 logger.warning("Spec not found, generating plan without spec context")
         
@@ -1120,13 +1229,35 @@ async def generate_plan(
         )
         
         # Generate plan
-        plan_content = doc_gen.generate_plan(
+        if request.operation_id and request.enable_copilot:
+            await _emit_ws_message(
+                operation_id=request.operation_id,
+                sequence=sequence,
+                message_type=MessageType.THINKING,
+                content="Copilot CLI is drafting the implementation plan...",
+                collapsible=True,
+            )
+            sequence += 1
+        plan_content, sequence = await _run_with_progress(
+            request.operation_id,
+            sequence,
+            "Generating implementation plan...",
+            doc_gen.generate_plan,
             requirement=request.requirement_description,
             feature_title=feature.title,
             branch_name=feature.branch_name,
             repository_name=feature.repository_full_name,
             spec_content=spec_content
         )
+
+        if request.operation_id:
+            await _emit_ws_message(
+                operation_id=request.operation_id,
+                sequence=sequence,
+                message_type=MessageType.COMPLETE,
+                content="Plan generation complete. Review and save when ready.",
+                is_final=True,
+            )
         
         return GenerateDocumentResponse(
             content=plan_content,
@@ -1139,6 +1270,15 @@ async def generate_plan(
         raise
     except Exception as e:
         logger.exception(f"Failed to generate plan: {str(e)}")
+        if request.operation_id:
+            await _emit_ws_message(
+                operation_id=request.operation_id,
+                sequence=999,
+                message_type=MessageType.ERROR,
+                content=f"Plan generation failed: {str(e)}",
+                priority=MessagePriority.HIGH,
+                is_final=True,
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate plan: {str(e)}"
@@ -1176,6 +1316,15 @@ async def generate_task(
             )
         
         logger.info(f"Generating tasks for feature {feature_id} with Copilot: {request.enable_copilot}")
+        sequence = 0
+        if request.operation_id:
+            await _emit_ws_message(
+                operation_id=request.operation_id,
+                sequence=sequence,
+                message_type=MessageType.EXECUTION,
+                content="Starting task generation...",
+            )
+            sequence += 1
         
         # Load spec and plan for context (if requested)
         spec_content = None
@@ -1191,6 +1340,14 @@ async def generate_task(
                         branch=feature.branch_name
                     )
                     logger.info(f"Loaded spec context ({len(spec_content)} chars)")
+                    if request.operation_id:
+                        await _emit_ws_message(
+                            operation_id=request.operation_id,
+                            sequence=sequence,
+                            message_type=MessageType.PROGRESS,
+                            content="Loaded spec context for task generation.",
+                        )
+                        sequence += 1
                 except GitHubAPIError:
                     logger.warning("Spec not found")
             
@@ -1203,6 +1360,14 @@ async def generate_task(
                         branch=feature.branch_name
                     )
                     logger.info(f"Loaded plan context ({len(plan_content)} chars)")
+                    if request.operation_id:
+                        await _emit_ws_message(
+                            operation_id=request.operation_id,
+                            sequence=sequence,
+                            message_type=MessageType.PROGRESS,
+                            content="Loaded plan context for task generation.",
+                        )
+                        sequence += 1
                 except GitHubAPIError:
                     logger.warning("Plan not found")
         
@@ -1213,7 +1378,20 @@ async def generate_task(
         )
         
         # Generate tasks
-        task_content = doc_gen.generate_tasks(
+        if request.operation_id and request.enable_copilot:
+            await _emit_ws_message(
+                operation_id=request.operation_id,
+                sequence=sequence,
+                message_type=MessageType.THINKING,
+                content="Copilot CLI is generating task breakdown...",
+                collapsible=True,
+            )
+            sequence += 1
+        task_content, sequence = await _run_with_progress(
+            request.operation_id,
+            sequence,
+            "Generating task breakdown...",
+            doc_gen.generate_tasks,
             requirement=request.requirement_description,
             feature_title=feature.title,
             branch_name=feature.branch_name,
@@ -1221,6 +1399,15 @@ async def generate_task(
             spec_content=spec_content,
             plan_content=plan_content
         )
+
+        if request.operation_id:
+            await _emit_ws_message(
+                operation_id=request.operation_id,
+                sequence=sequence,
+                message_type=MessageType.COMPLETE,
+                content="Task generation complete. Review and save when ready.",
+                is_final=True,
+            )
         
         return GenerateDocumentResponse(
             content=task_content,
@@ -1233,6 +1420,15 @@ async def generate_task(
         raise
     except Exception as e:
         logger.exception(f"Failed to generate tasks: {str(e)}")
+        if request.operation_id:
+            await _emit_ws_message(
+                operation_id=request.operation_id,
+                sequence=999,
+                message_type=MessageType.ERROR,
+                content=f"Task generation failed: {str(e)}",
+                priority=MessagePriority.HIGH,
+                is_final=True,
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate tasks: {str(e)}"

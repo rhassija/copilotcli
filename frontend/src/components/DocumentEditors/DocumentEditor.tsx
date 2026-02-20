@@ -6,8 +6,9 @@
  * - Save functionality with optimistic locking
  * - Unsaved changes detection
  * - Auto-save within debounced intervals
+ * - Real-time WebSocket updates via ConversationPanel
  * 
- * Implements: T117-T120 (Tab layout and document editing)
+ * Implements: T117-T120, T148-T152 (Tab layout, document editing, live updates)
  */
 
 'use client';
@@ -15,6 +16,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { apiService } from '@/services/api';
 import MarkdownPreview from './MarkdownPreview';
+import ConversationPanel from '../ConversationPanel';
 
 export interface DocumentContent {
   content: string;
@@ -50,6 +52,9 @@ export default function DocumentEditor({
   const [hasChanges, setHasChanges] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [operationId, setOperationId] = useState<string | null>(null);
+  const [showConversation, setShowConversation] = useState(false);
+  const [showThinking, setShowThinking] = useState(true);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   /**
@@ -121,6 +126,9 @@ export default function DocumentEditor({
    * Generate document with Copilot CLI
    */
   const handleGenerate = useCallback(async (requirementDescription: string, enableCopilot: boolean, copilotModel?: string) => {
+    const newOperationId = `${docType}-${featureId}-${Date.now()}`;
+    setOperationId(newOperationId);
+    setShowConversation(true);
     setIsGenerating(true);
     setError(null);
     setShowGenerateModal(false);
@@ -140,6 +148,7 @@ export default function DocumentEditor({
           enable_copilot: enableCopilot,
           copilot_model: copilotModel || null,
           include_context: true,
+          operation_id: newOperationId,
         },
         {
           timeout: 600000, // 10 minutes (600 seconds) for Copilot CLI generation
@@ -176,9 +185,20 @@ export default function DocumentEditor({
 
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+      {/* Conversation Panel */}
+      {operationId && (
+        <ConversationPanel
+          operationId={operationId}
+          isOpen={showConversation}
+          onClose={() => setShowConversation(false)}
+          title={`${docType.charAt(0).toUpperCase() + docType.slice(1)} Generation`}
+          showThinking={showThinking}
+          onToggleThinking={setShowThinking}
+        />
+      )}
       {/* Document Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-        <div className="flex-1">
+        <div>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {document.repository} / {document.branch} / {document.path}
           </p>
