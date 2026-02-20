@@ -40,8 +40,9 @@ services:
       - ./backend/src:/app/src:ro
       - ./backend/tests:/app/tests:ro
       
-      # Mount copilot companion environment (for CLI access)
-      - ./copilotcompanion:/copilotcompanion:ro
+      # Note: Copilot CLI is installed in the container via Dockerfile
+      # For development with local Copilot CLI, uncomment and adjust path:
+      # - ./copilotcompanion:/copilotcompanion:ro
     networks:
       - copilot-network
     healthcheck:
@@ -63,8 +64,10 @@ services:
       - "3000:3000"
     environment:
       # Backend API Configuration
-      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
-      - NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws
+      # Note: frontend container uses http://backend:8000 (internal Docker network)
+      # browser uses http://localhost:8000 (port mapping from host)
+      - NEXT_PUBLIC_API_BASE_URL=http://backend:8000
+      - NEXT_PUBLIC_WS_URL=ws://backend:8000/ws
       
       # Application Settings
       - NEXT_PUBLIC_APP_NAME=Copilot CLI Web UI
