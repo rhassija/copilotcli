@@ -39,7 +39,9 @@ app = FastAPI(
 # Phase 2: Restrict to specific origin
 ALLOWED_ORIGINS = [
     "http://localhost:3000",    # Next.js dev server
+    "http://localhost:3001",
     "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
     "http://localhost:8000",     # Backend (for swagger docs)
     "http://127.0.0.1:8000",
 ]

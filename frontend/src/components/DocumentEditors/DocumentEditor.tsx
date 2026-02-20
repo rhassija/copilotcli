@@ -126,6 +126,9 @@ export default function DocumentEditor({
    * Generate document with Copilot CLI
    */
   const handleGenerate = useCallback(async (requirementDescription: string, enableCopilot: boolean, copilotModel?: string) => {
+    const newOperationId = `${docType}-${featureId}-${Date.now()}`;
+    setOperationId(newOperationId);
+    setShowConversation(true);
     setIsGenerating(true);
     setError(null);
     setShowGenerateModal(false);
@@ -145,6 +148,7 @@ export default function DocumentEditor({
           enable_copilot: enableCopilot,
           copilot_model: copilotModel || null,
           include_context: true,
+          operation_id: newOperationId,
         },
         {
           timeout: 600000, // 10 minutes (600 seconds) for Copilot CLI generation
@@ -194,7 +198,7 @@ export default function DocumentEditor({
       )}
       {/* Document Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-            onClick={handleGenerate}
+        <div>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {document.repository} / {document.branch} / {document.path}
           </p>

@@ -13,7 +13,7 @@
 
 import { authService } from './auth';
 
-const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
+const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8001';
 
 export enum MessageType {
   CONNECTION = 'connection',
@@ -65,6 +65,7 @@ class WebSocketService {
   // Connection state
   private connectionId: string | null = null;
   private isConnected = false;
+  private eventHandlers: Map<string, Set<(payload?: any) => void>> = new Map();
 
   /**
    * Connect to WebSocket server.
@@ -77,7 +78,9 @@ class WebSocketService {
 
     const sessionId = authService.getSessionId();
     if (!sessionId) {
-      throw new Error('No active session - cannot connect to WebSocket');
+      const error = new Error('No active session - cannot connect to WebSocket');
+      this.emit('error', error);
+      return;
     }
 
     this.isConnecting = true;
@@ -95,6 +98,7 @@ class WebSocketService {
     } catch (error) {
       console.error('WebSocket connection error:', error);
       this.isConnecting = false;
+      this.emit('error', error);
       this.scheduleReconnect();
     }
   }
@@ -122,10 +126,13 @@ class WebSocketService {
     this.isConnected = true;
     this.isConnecting = false;
     this.reconnectAttempts = 0;
+    this.emit('connect');
 
     // Resubscribe to operations
     this.subscriptions.forEach(operationId => {
       this.sendSubscribe(operationId);
+      // Replay any buffered messages for this operation
+      this.requestReplay(operationId, -1);
     });
   }
 
@@ -162,6 +169,7 @@ class WebSocketService {
    */
   private handleError(event: Event): void {
     console.error('WebSocket error:', event);
+    this.emit('error', event);
   }
 
   /**
@@ -173,6 +181,7 @@ class WebSocketService {
     this.isConnected = false;
     this.isConnecting = false;
     this.ws = null;
+    this.emit('disconnect', event);
 
     // Attempt reconnect if not intentional close
     if (event.code !== 1000) {
@@ -239,6 +248,7 @@ class WebSocketService {
     // Send subscribe message if connected
     if (this.isConnected) {
       this.sendSubscribe(operationId);
+      this.requestReplay(operationId, -1);
     }
 
     // Register handler
@@ -288,6 +298,50 @@ class WebSocketService {
     return () => {
       this.globalHandlers.delete(handler);
     };
+  }
+
+  /**
+   * Register event handler (connect, disconnect, error).
+   */
+  on(event: 'connect' | 'disconnect' | 'error', handler: (payload?: any) => void): () => void {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, new Set());
+    }
+    this.eventHandlers.get(event)!.add(handler);
+
+    return () => {
+      this.off(event, handler);
+    };
+  }
+
+  /**
+   * Remove event handler.
+   */
+  off(event: 'connect' | 'disconnect' | 'error', handler: (payload?: any) => void): void {
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      handlers.delete(handler);
+      if (handlers.size === 0) {
+        this.eventHandlers.delete(event);
+      }
+    }
+  }
+
+  /**
+   * Emit event to registered handlers.
+   */
+  private emit(event: 'connect' | 'disconnect' | 'error', payload?: any): void {
+    const handlers = this.eventHandlers.get(event);
+    if (!handlers) {
+      return;
+    }
+    handlers.forEach(handler => {
+      try {
+        handler(payload);
+      } catch (error) {
+        console.error('Error in WebSocket event handler:', error);
+      }
+    });
   }
 
   /**

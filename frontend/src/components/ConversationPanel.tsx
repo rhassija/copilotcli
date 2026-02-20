@@ -20,7 +20,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { websocketService } from '../../services/websocket';
+import { wsService } from '../services/websocket';
 
 export interface Message {
   id: string;
@@ -90,33 +90,38 @@ export default function ConversationPanel({
       setIsConnected(false);
     };
 
-    const handleError = (error: Error) => {
+    const handleError = (error: any) => {
       console.error('ConversationPanel WebSocket error:', error);
+      const messageText =
+        error?.message ||
+        error?.reason ||
+        (typeof error === 'string' ? error : 'WebSocket connection error');
       const errorMessage: Message = {
         id: `error-${Date.now()}`,
         type: 'error',
-        content: `Connection error: ${error.message}`,
+        content: `Connection error: ${messageText}`,
         timestamp: Date.now(),
         sender: 'System',
       };
       setMessages(prev => [...prev, errorMessage]);
     };
 
-    // Subscribe to WebSocket for this operation
-    websocketService.subscribe(operationId, handleMessage);
-    websocketService.on('connect', handleConnect);
-    websocketService.on('disconnect', handleDisconnect);
-    websocketService.on('error', handleError);
+    // Ensure WebSocket connection and subscribe to operation
+    wsService.connect().catch(handleError);
+    wsService.subscribe(operationId, handleMessage);
+    wsService.on('connect', handleConnect);
+    wsService.on('disconnect', handleDisconnect);
+    wsService.on('error', handleError);
 
     // Check if already connected
-    const connected = websocketService.isConnected();
+    const connected = wsService.getIsConnected();
     setIsConnected(connected);
 
     return () => {
-      websocketService.unsubscribe(operationId, handleMessage);
-      websocketService.off('connect', handleConnect);
-      websocketService.off('disconnect', handleDisconnect);
-      websocketService.off('error', handleError);
+      wsService.unsubscribe(operationId, handleMessage);
+      wsService.off('connect', handleConnect);
+      wsService.off('disconnect', handleDisconnect);
+      wsService.off('error', handleError);
     };
   }, [isOpen, operationId, scrollToBottom]);
 
