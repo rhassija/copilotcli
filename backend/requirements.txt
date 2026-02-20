@@ -9,6 +9,8 @@ pydantic-settings>=2.0
 # HTTP and async clients  
 aiohttp>=3.9
 requests>=2.31  # For synchronous GitHub API calls
+httpx>=0.25  # For async HTTP client in tests
+cryptography>=41.0  # For Fernet token encryption
 
 # GitHub integration
 PyGithub>=2.1
