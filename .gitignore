@@ -89,3 +89,8 @@ dist/
 build/
 out/
 coverage/
+
+# Security and audit documentation (local-only)
+SECURITY-AUDIT.md
+SECURITY-README.md
+OPEN-SOURCE-CHECKLIST.md
