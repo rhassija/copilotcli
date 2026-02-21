@@ -608,6 +608,29 @@ async def list_features(
         # Get features from storage (filtered by repository)
         features = storage.list_features(repository_full_name=repo_full_name)
         logger.info(f"DEBUG: Found {len(features)} features for {repo_full_name}")
+
+        # Sync stored features with live GitHub branches when session is available.
+        # This prevents deleted branches from lingering in the UX.
+        if x_session_id:
+            try:
+                token = auth_service.get_session_token(x_session_id)
+                if token:
+                    github_client = GitHubClient(token)
+                    live_branches = await github_client.get_branches(repo_full_name, use_cache=False)
+                    live_branch_names = {branch.name for branch in live_branches}
+
+                    stale_features = [f for f in features if f.branch_name not in live_branch_names]
+                    if stale_features:
+                        for stale_feature in stale_features:
+                            storage.delete_feature(stale_feature.feature_id)
+                        features = [f for f in features if f.branch_name in live_branch_names]
+                        logger.info(
+                            f"Pruned {len(stale_features)} stale features for {repo_full_name} "
+                            f"(deleted branches no longer in GitHub)"
+                        )
+            except Exception as sync_error:
+                # Do not fail feature listing if GitHub sync check fails.
+                logger.warning(f"Feature sync with GitHub branches skipped: {str(sync_error)}")
         
         # Apply status filter if provided
         if status_filter:
