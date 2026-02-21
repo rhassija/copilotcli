@@ -158,7 +158,7 @@ export default function EditorPage() {
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  📝 Document Editor
+                  📝 Workflow Editor
                 </h1>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   Feature ID: {featureId}
@@ -184,7 +184,7 @@ export default function EditorPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 font-medium text-sm transition-colors border-b-2 ${
+              className={`px-4 py-3 font-medium text-base transition-colors border-b-2 ${
                 activeTab === tab.id
                   ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                   : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
