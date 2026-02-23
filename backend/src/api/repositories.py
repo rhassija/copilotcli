@@ -292,6 +292,7 @@ async def create_branch(
     """
     try:
         repo_full_name = f"{owner}/{repo}"
+        session = auth_service.get_session(x_session_id) if x_session_id else None
         feature_id = f"feat_{uuid.uuid4().hex[:16]}"
         
         # Get user from session
@@ -632,6 +633,32 @@ async def list_features(
                 # Do not fail feature listing if GitHub sync check fails.
                 logger.warning(f"Feature sync with GitHub branches skipped: {str(sync_error)}")
         
+        # If no tracked features are found in storage, bootstrap from repo specs directory.
+        # This makes fresh environments (like Docker) show existing specs/docs from GitHub.
+        if not features and x_session_id:
+            logger.info(f"Bootstrap triggered for {repo_full_name} - attempting GitHub discovery")
+            try:
+                session = storage.get_session(x_session_id)
+                token = auth_service.get_session_token(x_session_id)
+                if token:
+                    github_client = GitHubClient(token)
+                    discovered_features = await github_client.discover_features_from_specs(
+                        repo_full_name=repo_full_name,
+                        created_by_user_id=session.user.id if session else 0,
+                    )
+
+                    if discovered_features:
+                        for discovered in discovered_features:
+                            storage.save_feature(discovered)
+                        features = storage.list_features(repository_full_name=repo_full_name)
+                        logger.info(
+                            f"Bootstrapped {len(discovered_features)} features from specs directory for {repo_full_name}"
+                        )
+                    else:
+                        logger.info(f"No specs found in {repo_full_name} - repository may not have specs/ directory")
+            except Exception as bootstrap_error:
+                logger.warning(f"Feature bootstrap from specs skipped: {str(bootstrap_error)}")
+
         # Apply status filter if provided
         if status_filter:
             features = [
@@ -663,7 +690,7 @@ async def list_features(
 async def list_all_features(
     repository: Optional[str] = Query(None, description="Filter by repository (owner/repo)"),
     status_filter: Optional[str] = Query(None, description="Filter by feature status"),
-    github_client: GitHubClient = Depends(get_github_client)
+    x_session_id: str = Header(..., description="Session ID")
 ):
     """
     List all features across repositories for authenticated user.
@@ -679,6 +706,38 @@ async def list_all_features(
     try:
         # Get features from storage
         features = storage.list_features(repository_full_name=repository)
+        
+        # If storage is empty or has only local/specs features, discover from GitHub
+        github_features = [f for f in features if not f.repository_full_name.startswith("local/")]
+        
+        if not github_features:
+            # Get GitHub client from session
+            try:
+                token = auth_service.get_session_token(x_session_id)
+                session = storage.get_session(x_session_id)
+                
+                if token:
+                    github_client = GitHubClient(token)
+                    repos = await github_client.get_repositories(use_cache=True)
+                    
+                    # Discover features from each repo
+                    for repo in repos:
+                        discovered = await github_client.discover_features_from_specs(
+                            repo_full_name=repo.full_name,
+                            created_by_user_id=session.user.id if session else 0
+                        )
+                        
+                        if discovered:
+                            for feature in discovered:
+                                storage.save_feature(feature)
+                            logger.info(f"Discovered {len(discovered)} features from {repo.full_name}")
+                    
+                    # Reload features from storage after discovery
+                    features = storage.list_features(repository_full_name=repository)
+                    logger.info(f"GitHub feature discovery completed, total features: {len(features)}")
+                    
+            except Exception as discovery_error:
+                logger.warning(f"GitHub feature discovery failed: {str(discovery_error)}")
         
         # Apply repository filter if provided
         if repository:

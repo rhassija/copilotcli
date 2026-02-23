@@ -16,6 +16,36 @@ Before starting, ensure you have:
   - Grant scopes: `repo`, `user`
   - Copy and save the token (you'll need it)
 
+## 🚀 Start Here - Choose Your Path
+
+### Option 1: Docker (Fastest - 2 Minutes) ⚡
+
+**For those who just want to run the app:**
+
+```bash
+# 1. Clone repository (30 seconds)
+git clone https://github.com/your-org/copilotcli.git
+cd copilotcli
+
+# 2. Build Docker image (2-5 minutes first time)
+./scripts/build-docker-allinone.sh
+
+# 3. Run container (10 seconds)
+./scripts/run-docker-allinone.sh
+
+# 4. Open browser to http://localhost:3000
+```
+
+**✅ Done! Both frontend and backend are running.**
+
+For detailed Docker instructions, see [DOCKER-DEPLOYMENT.md](../DOCKER-DEPLOYMENT.md).
+
+---
+
+### Option 2: Native Development (5 Minutes) 🛠️
+
+**For those who want to develop and modify code:**
+
 ## 🚀 Start Here - 5 Minute Setup
 
 ### Step 1: Clone the Repository (30 seconds)

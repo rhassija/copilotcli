@@ -51,7 +51,7 @@ export default function FeaturesPage() {
       
       const response = await apiService.get<{
         features: Feature[];
-        total: number;
+        total_count: number;
       }>(url);
       
       console.debug(`Received ${response.features?.length || 0} features`);

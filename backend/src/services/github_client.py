@@ -10,6 +10,7 @@ Provides methods for:
 
 import asyncio
 import logging
+import uuid
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 
@@ -19,7 +20,7 @@ from github.Repository import Repository as GithubRepository
 from github.Branch import Branch as GithubBranch
 from github.ContentFile import ContentFile
 
-from src.models.github import Repository, Branch, Commit, Feature
+from src.models.github import Repository, Branch, Commit, Feature, FeatureStatus
 from src.models.auth import User, TokenScope
 from src.services.storage import storage
 
@@ -424,6 +425,115 @@ class GitHubClient:
             )
         
         return await self._retry_with_backoff(_create)
+
+    async def discover_features_from_specs(
+        self,
+        repo_full_name: str,
+        created_by_user_id: int,
+        branch: Optional[str] = None
+    ) -> List[Feature]:
+        """
+        Discover feature records from repository specs directory.
+
+        This is used as a fallback when local feature storage is empty
+        (e.g. fresh Docker container). It scans `specs/*/spec.md` and
+        creates in-memory feature records that can be persisted by caller.
+
+        Args:
+            repo_full_name: Repository full name (owner/repo)
+            created_by_user_id: User id to attribute discovered features to
+            branch: Optional branch to scan (defaults to repository default branch)
+
+        Returns:
+            List of discovered Feature models
+        """
+        async def _discover() -> List[Feature]:
+            repo = self._github.get_repo(repo_full_name)
+            default_branch = repo.default_branch or "main"
+
+            branches_to_scan: List[str] = [branch or default_branch]
+            if branch is None:
+                try:
+                    repo_branches = list(repo.get_branches())
+                    feature_like = [
+                        b.name for b in repo_branches
+                        if b.name != default_branch and (
+                            b.name.startswith("feature/")
+                            or b.name.startswith("feat/")
+                            or b.name.startswith("spec/")
+                            or (b.name[0].isdigit() and "-" in b.name)  # Include numeric-prefixed branches like 001-feature
+                        )
+                    ]
+                    branches_to_scan.extend(feature_like[:30])
+                    logger.info(f"[Discovery] {repo_full_name}: Found {len(feature_like)} feature branches to scan: {feature_like[:5]}")
+                except Exception as e:
+                    logger.warning(f"[Discovery] {repo_full_name}: Failed to get branches: {e}")
+                    pass
+            
+            logger.info(f"[Discovery] {repo_full_name}: Scanning {len(branches_to_scan)} branches: {branches_to_scan}")
+
+            seen_feature_ids = set()
+            discovered: List[Feature] = []
+
+            for scan_branch in branches_to_scan:
+                try:
+                    specs_entries = repo.get_contents("specs", ref=scan_branch)
+                    logger.info(f"[Discovery] {repo_full_name}/{scan_branch}: Found specs directory")
+                except GithubException as e:
+                    if e.status == 404:
+                        logger.debug(f"[Discovery] {repo_full_name}/{scan_branch}: No specs directory (404)")
+                        continue
+                    logger.warning(f"[Discovery] {repo_full_name}/{scan_branch}: Error accessing specs: {e}")
+                    raise
+
+                if not isinstance(specs_entries, list):
+                    continue
+
+                for entry in specs_entries:
+                    if getattr(entry, "type", None) != "dir":
+                        continue
+
+                    dir_path = entry.path
+                    try:
+                        child_entries = repo.get_contents(dir_path, ref=scan_branch)
+                    except GithubException:
+                        continue
+
+                    if not isinstance(child_entries, list):
+                        continue
+
+                    file_names = {child.name for child in child_entries}
+                    if "spec.md" not in file_names:
+                        continue
+
+                    slug = entry.name
+                    feature_id = f"feat_{uuid.uuid5(uuid.NAMESPACE_URL, f'{repo_full_name}:{scan_branch}:{dir_path}').hex[:16]}"
+                    if feature_id in seen_feature_ids:
+                        continue
+
+                    seen_feature_ids.add(feature_id)
+                    logger.info(f"[Discovery] {repo_full_name}/{scan_branch}: Found feature '{slug}' in {dir_path}")
+                    discovered.append(
+                        Feature(
+                            feature_id=feature_id,
+                            repository_full_name=repo_full_name,
+                            branch_name=scan_branch,
+                            base_branch=default_branch,
+                            title=slug.replace("-", " ").replace("_", " ").title(),
+                            status=FeatureStatus.ACTIVE,
+                            spec_path=f"{dir_path}/spec.md",
+                            plan_path=f"{dir_path}/plan.md" if "plan.md" in file_names else None,
+                            task_path=f"{dir_path}/tasks.md" if "tasks.md" in file_names else None,
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow(),
+                            created_by_user_id=created_by_user_id,
+                        )
+                    )
+            
+            logger.info(f"[Discovery] {repo_full_name}: Discovered {len(discovered)} features total")
+            return discovered
+
+        return await self._retry_with_backoff(_discover)
     
     # ========================================================================
     # File Operations

@@ -95,3 +95,21 @@ SECURITY-AUDIT.md
 SECURITY-README.md
 OPEN-SOURCE-CHECKLIST.md
 medium.md
+Copilot Companion Security Audit Checklist.md
+Copilot Companion Security Audit Report.md
+Copilot Companion Security Audit Report - Medium.md
+Copilot Companion Final - 4.mov
+Copilot Companion Login, Feature Creation & Spec Generation -1 .mov
+Copilot Companion Plan creation -2.mov
+Copilot Companion Task creation -3.mov
+
+# Docker runtime data and exports (DO NOT COMMIT)
+.docker-data/
+.docker-data-*/
+*.tar.gz
+copilot-companion*.tar.gz
+docker-save-*.tar.gz
+
+# Backend runtime data
+backend/.data/
+.data/

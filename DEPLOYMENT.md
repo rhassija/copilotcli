@@ -10,6 +10,7 @@
 
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
+- [Docker All-in-One Deployment](#docker-all-in-one-deployment-recommended)
 - [Local Development Setup](#local-development-setup)
 - [Docker Compose Deployment](#docker-compose-deployment)
 - [Environment Configuration](#environment-configuration)
@@ -29,6 +30,55 @@ This document describes how to deploy and run the Copilot CLI Web UI application
 
 **Current Status**: Phase 1 - Local Development Only  
 **Production Deployment**: To be documented in Phase 7 (T179)
+
+---
+
+## Docker All-in-One Deployment (Recommended)
+
+### Easiest Way to Get Started
+
+For the fastest setup with minimal dependencies, use the all-in-one Docker image:
+
+```bash
+# 1. Clone repository
+git clone https://github.com/yourusername/copilotcli.git
+cd copilotcli
+
+# 2. Build the Docker image
+./scripts/build-docker-allinone.sh
+
+# 3. Run the container
+./scripts/run-docker-allinone.sh
+
+# 4. Access the application
+# Frontend: http://localhost:3000
+# Backend: http://localhost:8000
+# API Docs: http://localhost:8000/docs
+```
+
+**What This Includes:**
+- ✅ Complete application in one container
+- ✅ Backend (Python 3.13 + FastAPI)
+- ✅ Frontend (Node.js 20 + Next.js 14)
+- ✅ Automatic service startup
+- ✅ Persistent data storage
+- ✅ GitHub feature discovery
+- ✅ Local specs included
+
+**Custom Ports:**
+```bash
+# Run on ports 3300 (UI) and 8800 (API)
+./scripts/run-docker-allinone.sh 3300 8800
+```
+
+**Sharing With Others:**
+
+See [DOCKER-DEPLOYMENT.md](DOCKER-DEPLOYMENT.md) for complete instructions on:
+- Building and running the container
+- Sharing via Docker Hub
+- Sharing via image file
+- Testing and verification
+- Troubleshooting
 
 ---
 

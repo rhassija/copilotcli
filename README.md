@@ -344,25 +344,51 @@ npm run test:e2e
 
 ## 🐳 Docker Deployment
 
-For local development with Docker:
+### All-in-One Docker Image (Recommended)
+
+The easiest way to run the application:
 
 ```bash
-# Build and run all services
-docker-compose up --build
+# Build the all-in-one image
+./scripts/build-docker-allinone.sh
 
+# Run the container (default ports: 3000, 8000)
+./scripts/run-docker-allinone.sh
+
+# Or with custom ports:
+./scripts/run-docker-allinone.sh 3300 8800
+
+# Access the application:
 # Frontend: http://localhost:3000
-# Backend: http://localhost:8001
+# Backend: http://localhost:8000
+# API Docs: http://localhost:8000/docs
 ```
 
-For production deployment, see [DEPLOYMENT.md](DEPLOYMENT.md).
+**What's Included:**
+- ✅ Python 3.13 + FastAPI backend
+- ✅ Node.js 20 + Next.js 14 frontend
+- ✅ Automatic service startup
+- ✅ Persistent data storage
+- ✅ GitHub feature discovery
+
+For detailed Docker instructions, see [DOCKER-DEPLOYMENT.md](DOCKER-DEPLOYMENT.md).
+
+For production deployment with Docker Compose, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## 📚 Documentation
 
+### Quick Start
+- **[DOCKER-QUICK-REFERENCE.md](DOCKER-QUICK-REFERENCE.md)** - Essential Docker commands cheat sheet
+- **[QUICKSTART.md](docs/QUICKSTART.md)** - Step-by-step setup guide (native or Docker)
+
+### Deployment
+- **[DOCKER-DEPLOYMENT.md](DOCKER-DEPLOYMENT.md)** - Complete Docker deployment guide
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - All deployment options (native, Docker, Docker Compose)
+
+### Development
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Technical design and patterns
-- **[QUICKSTART.md](docs/QUICKSTART.md)** - Step-by-step setup guide
 - **[TESTING-GUIDE.md](TESTING-GUIDE.md)** - How to run tests
 - **[PLAN-TASK-GENERATION-GUIDE.md](PLAN-TASK-GENERATION-GUIDE.md)** - Document generation workflow
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production deployment instructions
 - **[IMPLEMENTATION-SUMMARY.md](IMPLEMENTATION-SUMMARY.md)** - What's been implemented
 
 ## 🔌 API Endpoints
