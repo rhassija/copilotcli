@@ -1,0 +1,23 @@
+services:
+  copilot-companion:
+    build:
+      context: .
+      dockerfile: Dockerfile.allinone
+    image: copilot-companion:allinone
+    container_name: copilot-companion-allinone
+    ports:
+      - "3000:3000"
+      - "8000:8000"
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - BACKEND_HOST=0.0.0.0
+      - BACKEND_PORT=8000
+      - FRONTEND_PORT=3000
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+    volumes:
+      - copilot_backend_data:/app/backend/.data
+    restart: unless-stopped
+
+volumes:
+  copilot_backend_data:

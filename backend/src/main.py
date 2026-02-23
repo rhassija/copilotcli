@@ -34,17 +34,27 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
-# Configure CORS middleware for frontend development
-# Phase 1: Allow localhost development
-# Phase 2: Restrict to specific origin
-ALLOWED_ORIGINS = [
-    "http://localhost:3000",    # Next.js dev server
-    "http://localhost:3001",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
-    "http://localhost:8000",     # Backend (for swagger docs)
-    "http://127.0.0.1:8000",
-]
+def _get_allowed_origins() -> list[str]:
+    """Resolve CORS origins from environment with safe localhost defaults."""
+    cors_origins = os.getenv("CORS_ORIGINS", "").strip()
+    if cors_origins:
+        return [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+
+    return [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3300",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3300",
+        "http://localhost:8000",
+        "http://localhost:8800",
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8800",
+    ]
+
+
+ALLOWED_ORIGINS = _get_allowed_origins()
 
 app.add_middleware(
     CORSMiddleware,

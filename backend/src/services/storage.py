@@ -16,6 +16,7 @@ Note: This will be replaced with database storage (PostgreSQL + SQLAlchemy) in P
 import threading
 import json
 import os
+import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
@@ -82,6 +83,10 @@ class InMemoryStorage:
         # Load persisted data from disk
         self._load_features_from_disk()
         self._load_operations_from_disk()
+        
+        # Discover features from local specs directory if storage is empty
+        if not self._features:
+            self._discover_features_from_local_specs()
     
     # ========================================================================
     # Authentication Operations
@@ -421,6 +426,103 @@ class InMemoryStorage:
                 print("[Storage] No operations file found - starting with empty operations")
         except Exception as e:
             print(f"[Storage] Error loading operations from disk: {e}")
+    
+    def _discover_features_from_local_specs(self) -> None:
+        """Discover features from local specs directory without requiring GitHub API."""
+        try:
+            # Check both Docker path and local path
+            specs_paths = [Path("/app/specs"), Path("./specs")]
+            specs_dir = None
+            
+            for path in specs_paths:
+                if path.exists() and path.is_dir():
+                    specs_dir = path
+                    break
+            
+            if not specs_dir:
+                print("[Storage] No specs directory found for local feature discovery")
+                return
+            
+            print(f"[Storage] Discovering features from local specs directory: {specs_dir}")
+            discovered_count = 0
+            
+            # Scan all subdirectories in specs/
+            for spec_path in specs_dir.iterdir():
+                if not spec_path.is_dir():
+                    continue
+                
+                spec_file = spec_path / "spec.md"
+                if not spec_file.exists():
+                    continue
+                
+                try:
+                    # Read spec.md to extract title and description
+                    with open(spec_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        lines = content.split('\n')
+                        title = spec_path.name
+                        description = ""
+                        
+                        # Try to extract title from first header
+                        for line in lines:
+                            if line.startswith('# '):
+                                title = line[2:].strip()
+                                break
+                        
+                        # Try to extract description (first non-empty paragraph after title)
+                        found_title = False
+                        for line in lines:
+                            if line.startswith('# '):
+                                found_title = True
+                                continue
+                            if found_title and line.strip() and not line.startswith('#'):
+                                description = line.strip()
+                                break
+                    
+                    # Check for plan.md and tasks.md
+                    plan_path = None
+                    task_path = None
+                    if (spec_path / "plan.md").exists():
+                        plan_path = f"specs/{spec_path.name}/plan.md"
+                    if (spec_path / "tasks.md").exists():
+                        task_path = f"specs/{spec_path.name}/tasks.md"
+                    
+                    # Generate deterministic feature_id from spec path
+                    feature_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"local-spec-{spec_path.name}"))
+                    
+                    # Create Feature object
+                    feature = Feature(
+                        feature_id=feature_id,
+                        repository_full_name="local/specs",
+                        branch_name="main",
+                        spec_path=f"specs/{spec_path.name}/spec.md",
+                        plan_path=plan_path,
+                        task_path=task_path,
+                        title=title,
+                        status="active",
+                        created_at=datetime.now(),
+                        updated_at=datetime.now(),
+                        created_by_user_id=0
+                    )
+                    
+                    self._features[feature_id] = feature
+                    discovered_count += 1
+                    print(f"[Storage] Discovered feature: {title} ({spec_path.name})")
+                    
+                except Exception as e:
+                    print(f"[Storage] Error discovering feature from {spec_path}: {e}")
+            
+            if discovered_count > 0:
+                print(f"[Storage] Discovered {discovered_count} features from local specs")
+                # Persist discovered features to disk
+                self._persist_features_to_disk()
+            else:
+                print("[Storage] No features discovered from local specs")
+        
+        except Exception as e:
+            print(f"[Storage] Error during local feature discovery: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _persist_features_to_disk(self) -> None:
         """Persist all features to JSON file."""
